@@ -15,6 +15,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 #include "VideoSubFinderWXW.h"
+#include "OpenVideoDialog.h"
 #include <wx/stdpaths.h>
 #include <wx/wfstream.h>
 #include <wx/txtstrm.h>
@@ -478,6 +479,46 @@ bool CVideoSubFinderApp::OnInit()
 	if (blnNeedToExit) return false;
 
 	m_pMainWnd->Show(true);
+
+	// Show the Open Video dialog at startup
+	SaveToReportLog("Showing Open Video Dialog...\n");
+	COpenVideoDialog openVideoDialog(m_pMainWnd);
+
+	if (openVideoDialog.ShowModal() == wxID_OK)
+	{
+		COpenVideoDialog::VideoOpenMethod method = openVideoDialog.GetSelectedMethod();
+		SaveToReportLog(wxString::Format("User selected method: %d\n", (int)method));
+
+		wxCommandEvent dummyEvent;
+
+		switch (method)
+		{
+		case COpenVideoDialog::METHOD_OPENCV:
+			m_pMainWnd->OnFileOpenVideoOpenCV(dummyEvent);
+			break;
+
+		case COpenVideoDialog::METHOD_FFMPEG:
+			m_pMainWnd->OnFileOpenVideoFFMPEG(dummyEvent);
+			break;
+
+		case COpenVideoDialog::METHOD_REOPEN:
+			m_pMainWnd->OnFileReOpenVideo(dummyEvent);
+			break;
+
+		case COpenVideoDialog::METHOD_OPEN_PREVIOUS:
+			m_pMainWnd->OnFileOpenPreviousVideo(dummyEvent);
+			break;
+
+		case COpenVideoDialog::METHOD_CANCEL:
+		default:
+			SaveToReportLog("User cancelled or closed the dialog.\n");
+			break;
+		}
+	}
+	else
+	{
+		SaveToReportLog("User cancelled the Open Video Dialog.\n");
+	}
 
 	return true;
 }
