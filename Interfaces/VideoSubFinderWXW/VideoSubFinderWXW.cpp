@@ -479,6 +479,7 @@ bool CVideoSubFinderApp::OnInit()
 	if (blnNeedToExit) return false;
 
 	m_pMainWnd->Show(true);
+	m_pMainWnd->Maximize(true);  // Maximize window at startup
 
 	// Show the Open Video dialog at startup
 	SaveToReportLog("Showing Open Video Dialog...\n");

@@ -24,7 +24,8 @@
 #include <condition_variable>
 #include <queue>
 #include <thread>
-#ifdef WIN32
+#if defined(_MSC_VER)
+// Microsoft's Parallel Patterns Library (only available with Visual Studio)
 #include <ppl.h>
 #endif
 
@@ -244,11 +245,10 @@ private:
 	T m_step;
 };
 
-#ifdef WIN32 // WINX86 or WIN64
-#ifdef WIN64
+#if defined(_MSC_VER) && defined(WIN64)
+// Visual Studio with WIN64: Use Microsoft's Parallel Patterns Library
 #define run_in_parallel concurrency::parallel_invoke
-#endif
-#ifdef WINX86
+#elif defined(WIN32) && defined(WINX86)
 // replacing run_in_parallel to sequential run in 1 thread
 template <typename _Function1, typename _Function2>
 inline void run_in_parallel(const _Function1& _Func1, const _Function2& _Func2)
@@ -283,8 +283,8 @@ inline void run_in_parallel(const _Function1& _Func1, const _Function2& _Func2, 
 	_Func4();
 	_Func5();
 }
-#endif
-#else // not WIN32 == Linux
+#else
+// MSYS2/MinGW on Windows, or Linux/macOS: Use std::thread for parallel execution
 template <typename _Function1, typename _Function2>
 inline void run_in_parallel(const _Function1& _Func1, const _Function2& _Func2)
 {

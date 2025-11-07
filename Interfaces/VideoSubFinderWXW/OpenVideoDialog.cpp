@@ -102,7 +102,9 @@ COpenVideoDialog::COpenVideoDialog(wxWindow* parent)
     mainSizer->Add(m_pBtnCancel, 0, wxALL | wxALIGN_CENTER_HORIZONTAL, 10);
 
     SetSizer(mainSizer);
-    Centre();
+    Fit();  // Auto-size dialog to fit all content
+    SetMinSize(GetSize());  // Prevent dialog from being resized smaller than content
+    CentreOnScreen();
 }
 
 COpenVideoDialog::~COpenVideoDialog()

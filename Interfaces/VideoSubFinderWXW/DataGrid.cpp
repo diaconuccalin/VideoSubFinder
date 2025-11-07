@@ -86,7 +86,7 @@ public:
 
 		m_pstr = pstr;
 
-		m_grid->SetCellValue(m_row, m_col, wxJoin(*m_pstr, '\n'));
+		m_grid->SetCellValue(m_row, m_col, wxJoin(*m_pstr, wxT('\n')));
 	}
 
 
@@ -259,7 +259,7 @@ public:
 	{
 		bool res = true;
 		wxString Str = *newval;
-		int val = (int)strtod(Str, NULL);		
+		int val = (int)strtod(Str.mb_str(), NULL);		
 			
 		if ( (val >= m_vmin) && (val <= m_vmax) )
 		{
@@ -338,7 +338,7 @@ public:
 	{
 		bool res = true;
 		wxString Str = *newval;
-		double val = strtod(Str, NULL);
+		double val = strtod(Str.mb_str(), NULL);
 			
 		if ( (val >= m_vmin) && (val <= m_vmax) )
 		{

@@ -2,7 +2,21 @@ cmake_minimum_required(VERSION 3.13)
 
 project(VideoSubFinderWXW LANGUAGES CXX)
 
-if(WIN32)
+# Detect MSYS2/MinGW build (different from Visual Studio on Windows)
+if(MINGW OR MSYS)
+	# MSYS2/MinGW build - use find_package like Linux
+	option(USE_CUDA "Build with CUDA support" OFF)
+	if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+		set(wxWidgets_USE_DEBUG ON)
+	else()
+		set(wxWidgets_USE_DEBUG OFF)
+	endif()
+	find_package(wxWidgets REQUIRED COMPONENTS core base aui)
+	find_package(OpenCV REQUIRED)
+	# Note: CUDA is not supported with MSYS2/MinGW (nvcc requires MSVC)
+	set(USE_MSYS2 TRUE)
+elseif(WIN32)
+	# Visual Studio build
 	option(WIN64 "Make x64 build" ON)
 
 	if(WIN64)
@@ -23,8 +37,9 @@ if(WIN32)
 	endif(WIN64)
 
 	set(OpenCV_LIBS "opencv_world$ENV{OPENCV_LIBS_VER}.lib" CACHE STRING "Required OpenCV libs for build")
-
+	set(USE_MSYS2 FALSE)
 else()
+	# Linux/macOS build
 	option(USE_CUDA "Build with CUDA support" ON)
 	if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 		set(wxWidgets_USE_DEBUG ON)
@@ -36,7 +51,8 @@ else()
 	if(USE_CUDA)
 		set(CUDA_LINK_DIRS "$ENV{CUDA_TOOLKIT_PATH}//lib64;$ENV{CUDA_TOOLKIT_PATH}//extras/CUPTI/lib64" CACHE STRING "CUDA link dirs")
 	endif(USE_CUDA)
-endif(WIN32)
+	set(USE_MSYS2 FALSE)
+endif()
 
 if(USE_CUDA)
 	set(CMAKE_CUDA_FLAGS "-arch=all")

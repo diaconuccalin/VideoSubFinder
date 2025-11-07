@@ -1,13 +1,60 @@
-# Ignore Everything
-*
+# Build directories
+build/
+build_*/
+Release/
+Debug/
 
-# But not:
-!*.cpp
-!*.c
-!*.hpp
-!*.h
-!*.cu
-!.gitignore
-# Or directories
-!*/
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
 
+# Compiled files
+*.o
+*.obj
+*.slo
+*.lo
+*.gch
+*.pch
+*.so
+*.dylib
+*.dll
+*.lai
+*.la
+*.a
+*.lib
+*.exe
+*.out
+*.app
+
+# IDE - Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.opendb
+
+# IDE - VS Code
+.vscode/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup files
+*~
+*.swp
+*.bak
+*.tmp
