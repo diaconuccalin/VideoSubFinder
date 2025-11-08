@@ -408,6 +408,8 @@ public:
 	CSSOWnd		*m_pPanel;
 	CVideoBox	*m_pVideoBox;
 	CImageBox	*m_pImageBox;
+	wxPanel		*m_pLegendPanel;
+	wxStaticText *m_pLegendText;
 
 	CVideo		*m_pVideo;
 
@@ -418,9 +420,11 @@ public:
 	wxString		m_EndTimeStr;
 
 	wxTimer		m_timer;
-	
+	wxTimer		m_autodetect_timer;
+
 	enum {Play, Pause, Stop}	m_vs;
 	std::mutex					m_play_mutex;
+	std::mutex					m_autodetect_mutex;
 
 	int			m_BufferSize;
 	int			m_w; //video width
@@ -444,6 +448,8 @@ public:
 	s64			m_EndTime;
 
 	bool		m_blnReopenVideo;
+	bool		m_bAutoDetectionRunning;
+	bool		m_bClosing;
 
 	int			m_type;
 
@@ -480,6 +486,7 @@ public:
 	void get_available_text_alignments();
 	void get_StrFN();
 	void UpdateDynamicSettings();
+	void AutoDetectSubtitleBounds();
 
 public:
 	void OnViewImageInImageBox(wxThreadEvent& event);
@@ -505,6 +512,7 @@ public:
 	void OnFileLoadSettings(wxCommandEvent& event);
 	void OnFileSaveSettingsAs(wxCommandEvent& event);
 	void OnTimer(wxTimerEvent& event);
+	void OnAutoDetectTimer(wxTimerEvent& event);
 	void OnClose(wxCloseEvent& event);
 	void OnQuit(wxCommandEvent& event);
 	void OnFileOpenPreviousVideo(wxCommandEvent& event);

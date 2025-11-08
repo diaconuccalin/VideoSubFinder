@@ -360,7 +360,7 @@ void CSeparatingLine::OnPaint(wxPaintEvent& WXUNUSED(event))
 
 	dc.SetBackgroundMode(wxTRANSPARENT);
 	dc.DestroyClippingRegion();
-	dc.SetClippingRegion(m_rgn);
+	dc.SetDeviceClippingRegion(m_rgn);
 
 	dc.SetBrush(borderBrush);
 	dc.DrawRectangle(0, 0, w, h);
@@ -389,7 +389,7 @@ void CSeparatingLine::OnEraseBackground(wxEraseEvent &event)
 
 	pdc->SetBackgroundMode(wxTRANSPARENT);
 	pdc->DestroyClippingRegion();
-	pdc->SetClippingRegion(m_rgn);
+	pdc->SetDeviceClippingRegion(m_rgn);
 
 	pdc->SetBrush(borderBrush);
 	pdc->DrawRectangle(0, 0, w, h);

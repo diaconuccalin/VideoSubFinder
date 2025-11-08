@@ -111,6 +111,8 @@
 
 #define ID_LBL_END_TIME                 1283
 
+#define ID_BTN_STOP_AUTO_DETECT         1284
+
 
 ///////////////////////////////////////////////////////////
 
@@ -190,6 +192,7 @@
 #define ID_APP_FORUM                    74
 #define ID_APP_BUG_TRACKER              75
 #define TIMER_ID_IB						76
+#define TIMER_ID_AUTODETECT				77
 
 // !NOTE: SHOULD BE WITH THE HIGHEST VALUE
-#define FIRST_ID_FOR_LOCALIZATIONS      77
+#define FIRST_ID_FOR_LOCALIZATIONS      78

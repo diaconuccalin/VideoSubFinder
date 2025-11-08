@@ -300,6 +300,7 @@ BEGIN_EVENT_TABLE(CMainFrame, wxFrame)
 	EVT_MENU(ID_FILE_LOADSETTINGS, CMainFrame::OnFileLoadSettings)
 	EVT_MENU(ID_FILE_SAVESETTINGSAS, CMainFrame::OnFileSaveSettingsAs)
 	EVT_TIMER(TIMER_ID, CMainFrame::OnTimer)
+	EVT_TIMER(TIMER_ID_AUTODETECT, CMainFrame::OnAutoDetectTimer)
 	EVT_CLOSE(CMainFrame::OnClose) 
 	EVT_MENU(ID_FILE_EXIT, CMainFrame::OnQuit)
 	EVT_MENU(ID_FILE_OPENPREVIOUSVIDEO, CMainFrame::OnFileOpenPreviousVideo)
@@ -329,6 +330,7 @@ CMainFrame::CMainFrame(const wxString& title)
 							wxDefaultPosition, wxDefaultSize,
 							wxDEFAULT_FRAME_STYLE | wxFRAME_NO_WINDOW_MENU )
 		, m_timer(this, TIMER_ID)
+		, m_autodetect_timer(this, TIMER_ID_AUTODETECT)
 {
 	m_WasInited = false;
 	m_VIsOpen = false;
@@ -339,8 +341,10 @@ CMainFrame::CMainFrame(const wxString& title)
 	m_pVideo = NULL;
 
 #ifdef WIN32
-	// set frame icon
-	this->SetIcon(wxIcon("vsf_ico"));
+	// set frame icon (use SetIcons for proper taskbar display)
+	wxIconBundle icons;
+	icons.AddIcon(wxIcon("vsf_ico"));
+	this->SetIcons(icons);
 #endif
 
 	g_pV = NULL;
@@ -356,6 +360,8 @@ CMainFrame::CMainFrame(const wxString& title)
 
 
 	m_blnReopenVideo = false;
+	m_bAutoDetectionRunning = false;
+	m_bClosing = false;
 
 	m_FileName = "";
 	m_dt = 0;
@@ -553,6 +559,44 @@ void CMainFrame::Init()
 	m_pVideoBox->Init();
 	SaveToReportLog("CMainFrame::Init(): m_pVideoBox->Bind...\n");
 
+	// Create legend panel to the left of VideoBox
+	SaveToReportLog("CMainFrame::Init(): Creating legend panel...\n");
+	m_pLegendPanel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(140, 100));
+	m_pLegendPanel->SetBackgroundColour(wxColour(40, 40, 40));
+
+	// Create title
+	wxStaticText* pTitle = new wxStaticText(m_pLegendPanel, wxID_ANY, wxT("Subtitle Bounding Box"), wxPoint(10, 10), wxDefaultSize);
+	pTitle->SetForegroundColour(wxColour(255, 255, 255));
+	wxFont titleFont = pTitle->GetFont();
+	titleFont.SetPointSize(8);
+	titleFont.SetWeight(wxFONTWEIGHT_BOLD);
+	pTitle->SetFont(titleFont);
+
+	// Create color-coded labels
+	wxFont labelFont;
+	labelFont.SetPointSize(8);
+	labelFont.SetWeight(wxFONTWEIGHT_BOLD);
+
+	wxStaticText* pTopLabel = new wxStaticText(m_pLegendPanel, wxID_ANY, wxT("Top"), wxPoint(10, 35), wxDefaultSize);
+	pTopLabel->SetForegroundColour(wxColour(255, 255, 0));  // Yellow
+	pTopLabel->SetFont(labelFont);
+
+	wxStaticText* pBottomLabel = new wxStaticText(m_pLegendPanel, wxID_ANY, wxT("Bottom"), wxPoint(10, 50), wxDefaultSize);
+	pBottomLabel->SetForegroundColour(wxColour(0, 255, 0));  // Green
+	pBottomLabel->SetFont(labelFont);
+
+	wxStaticText* pLeftLabel = new wxStaticText(m_pLegendPanel, wxID_ANY, wxT("Left"), wxPoint(10, 65), wxDefaultSize);
+	pLeftLabel->SetForegroundColour(wxColour(255, 0, 0));  // Red
+	pLeftLabel->SetFont(labelFont);
+
+	wxStaticText* pRightLabel = new wxStaticText(m_pLegendPanel, wxID_ANY, wxT("Right"), wxPoint(10, 80), wxDefaultSize);
+	pRightLabel->SetForegroundColour(wxColour(0, 0, 255));  // Blue
+	pRightLabel->SetFont(labelFont);
+
+	// Position the legend panel
+	m_pLegendPanel->SetPosition(wxPoint(m_dx, m_dy));
+	m_pLegendPanel->Show();
+
 #ifdef WIN32
 	if (g_cfg.process_affinity_mask > 0)
 	{
@@ -605,7 +649,9 @@ void CMainFrame::Init()
 	m_pImageBox->Show(true);
 
 	SaveToReportLog("CMainFrame::Init(): m_pVideoBox->SetSize(..)...\n");
-	m_pVideoBox->SetSize(m_dx, m_dy, cw / 2 - 2 * m_dx, ch - m_ph - 2 * m_dy);
+	int legend_width = 140;
+	int gap = 5;
+	m_pVideoBox->SetSize(m_dx + legend_width + gap, m_dy, cw / 2 - 2 * m_dx - legend_width - gap, ch - m_ph - 2 * m_dy);
 	SaveToReportLog("CMainFrame::Init(): m_pVideoBox->Show(true)...\n");
 	m_pVideoBox->Show(true);	
 
@@ -747,9 +793,19 @@ void CMainFrame::OnSize(wxSizeEvent& event)
 		m_pImageBox->Refresh();
 	}
 
+	if (m_pLegendPanel)
+	{
+		int legend_width = 140;
+		int legend_height = 100;
+		m_pLegendPanel->SetSize(m_dx, m_dy, legend_width, legend_height);
+		m_pLegendPanel->Raise();
+	}
+
 	if (m_pVideoBox)
 	{
-		m_pVideoBox->SetSize(m_dx, m_dy, cw / 2 - 2 * m_dx, ch - m_ph - 2 * m_dy);
+		int legend_width = 140;
+		int gap = 5;
+		m_pVideoBox->SetSize(m_dx + legend_width + gap, m_dy, cw / 2 - 2 * m_dx - legend_width - gap, ch - m_ph - 2 * m_dy);
 		m_pVideoBox->Raise();
 		m_pVideoBox->Refresh();
 	}
@@ -852,6 +908,385 @@ void CMainFrame::UpdateDynamicSettings()
 	{
 		exit(0);
 	}
+}
+
+void CMainFrame::AutoDetectSubtitleBounds()
+{
+	// CRITICAL: Check IsBeingDeleted() FIRST before accessing ANY member variables
+	// because this callback might execute during window destruction
+	if (IsBeingDeleted())
+	{
+		// Don't log, don't access members - just return immediately
+		return;
+	}
+
+	// Now safe to check member variables
+	if (m_bClosing || !IsShown())
+	{
+		SaveToReportLog("AutoDetectSubtitleBounds: Window is closing/hidden, aborting auto-detection\n");
+		return;
+	}
+
+	if (!m_VIsOpen || m_pVideo == NULL)
+	{
+		return;
+	}
+
+	// Set flag to indicate auto-detection is running
+	m_bAutoDetectionRunning = true;
+	SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to TRUE\n");
+
+	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Starting automatic subtitle boundary detection... (Video: %dx%d)\n", m_w, m_h));
+
+	// Show progress UI early (with closing check for safety)
+	if (!m_bClosing && m_pPanel && m_pPanel->m_pSHPanel)
+	{
+		m_pPanel->m_pSHPanel->ShowAutoDetectProgress(true);
+	}
+
+	try
+	{
+		// Validate video dimensions to prevent memory issues
+		if (m_w <= 0 || m_h <= 0)
+		{
+			SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Invalid video dimensions: %dx%d\n", m_w, m_h));
+			m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+			wxMessageBox(wxString::Format(wxT("Invalid video dimensions (%dx%d). Auto-detection aborted."), m_w, m_h),
+			             wxT("Auto-Detection Error"), wxOK | wxICON_WARNING);
+			m_bAutoDetectionRunning = false;
+			SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (invalid dimensions)\n");
+			return;
+		}
+
+		// Check if buffer size is reasonable (prevent overflow)
+		// Use safe multiplication to avoid overflow
+		if (m_w > 4096 || m_h > 2160)  // Limit to 4K resolution
+		{
+			SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Video resolution too high: %dx%d (max 4096x2160)\n", m_w, m_h));
+			m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+			wxMessageBox(wxString::Format(wxT("Video resolution (%dx%d) is too high for auto-detection.\nMaximum supported: 4096x2160\nPlease set subtitle bounds manually."), m_w, m_h),
+			             wxT("Auto-Detection Error"), wxOK | wxICON_WARNING);
+			m_bAutoDetectionRunning = false;
+			SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (resolution too high)\n");
+			return;
+		}
+
+		const s64 sample_interval_ms = 1500;  // Sample every 1.5 seconds
+		const double margin = 0.05;  // 5% margin for safety
+		const double lower_half_start = 0.5;  // Only search bottom 50% of frame for subtitles
+
+		s64 original_pos = m_pVideo->GetPos();  // Save current position
+
+		// Calculate number of samples based on video duration
+		s64 video_duration_ms = m_EndTime - m_BegTime;
+		int num_samples = (int)(video_duration_ms / sample_interval_ms) + 1;
+
+	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Will sample %d frames (every %.1f seconds) from video duration of %.1f seconds\n",
+	                                  num_samples, sample_interval_ms / 1000.0, video_duration_ms / 1000.0));
+
+	// Initialize bounds to full frame (will be narrowed down)
+	double top_bound = 1.0;     // Start from bottom, work up
+	double bottom_bound = 0.0;  // Start from top, work down
+	double left_bound = 1.0;    // Start from right, work left
+	double right_bound = 0.0;   // Start from left, work right
+
+	// Calculate buffer size
+	size_t buffer_size = (size_t)m_w * (size_t)m_h * 3;
+	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Attempting to allocate %zu bytes (%.2f MB) for frame buffer...\n",
+	                                  buffer_size, buffer_size / (1024.0 * 1024.0)));
+
+	// Allocate image buffer once outside the loop to avoid repeated allocations
+	simple_buffer<u8> ImBGR;
+	try
+	{
+		ImBGR.set_size(buffer_size);
+		SaveToReportLog("AutoDetectSubtitleBounds: Frame buffer allocated successfully.\n");
+	}
+	catch (const std::bad_alloc& e)
+	{
+		SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Failed to allocate frame buffer (%zu bytes): %s\n", buffer_size, e.what()));
+		m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+		wxMessageBox(wxString::Format(wxT("Failed to allocate memory for frame buffer (%.2f MB).\nVideo resolution: %dx%d\nPlease close other applications or set subtitle bounds manually."),
+		             buffer_size / (1024.0 * 1024.0), m_w, m_h),
+		             wxT("Memory Error"), wxOK | wxICON_ERROR);
+		m_bAutoDetectionRunning = false;
+		SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (frame buffer allocation failed)\n");
+		return;
+	}
+
+	// Preallocate OpenCV Mat buffers outside the loop to reduce memory allocations
+	SaveToReportLog("AutoDetectSubtitleBounds: Allocating OpenCV buffers...\n");
+	int search_start_y = (int)(m_h * lower_half_start);
+	int lower_half_height = m_h - search_start_y;
+
+	cv::Mat gray, binary, kernel;
+	std::vector<std::vector<cv::Point>> contours;
+
+	try
+	{
+		// Preallocate gray and binary matrices
+		gray = cv::Mat(lower_half_height, m_w, CV_8UC1);
+		binary = cv::Mat(lower_half_height, m_w, CV_8UC1);
+		kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+		SaveToReportLog("AutoDetectSubtitleBounds: OpenCV buffers allocated successfully.\n");
+	}
+	catch (const std::bad_alloc& e)
+	{
+		SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Failed to allocate OpenCV buffers: %s\n", e.what()));
+		m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+		wxMessageBox(wxT("Failed to allocate memory for image processing buffers.\nPlease close other applications or set subtitle bounds manually."),
+		             wxT("Memory Error"), wxOK | wxICON_ERROR);
+		m_bAutoDetectionRunning = false;
+		SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (OpenCV buffer allocation failed)\n");
+		return;
+	}
+
+	SaveToReportLog("AutoDetectSubtitleBounds: All buffers allocated successfully. Starting frame sampling...\n");
+
+	// Sample frames at regular intervals
+	int frames_processed = 0;
+	int total_subtitles_found = 0;
+	for (int i = 0; i < num_samples; i++)
+	{
+		// Check if window is closing or user clicked stop button
+		if (m_bClosing || !m_pPanel || !m_pPanel->m_pSHPanel || m_pPanel->m_pSHPanel->m_bStopAutoDetect || !m_pVideo)
+		{
+			SaveToReportLog("AutoDetectSubtitleBounds: Stopped by user request or application closing\n");
+			if (m_pPanel && m_pPanel->m_pSHPanel)
+			{
+				m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+			}
+			m_bAutoDetectionRunning = false;
+			SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (user stop)\n");
+			return;
+		}
+
+		s64 sample_pos = m_BegTime + (s64)(i * sample_interval_ms);
+
+		// Skip if we've gone past the end time
+		if (sample_pos > m_EndTime)
+		{
+			break;
+		}
+
+		// Update progress bar (with null check and stop flag check)
+		if (!m_bClosing && m_pPanel && m_pPanel->m_pSHPanel && !m_pPanel->m_pSHPanel->m_bStopAutoDetect)
+		{
+			m_pPanel->m_pSHPanel->UpdateAutoDetectProgress(i + 1, num_samples);
+		}
+
+		SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Processing frame %d/%d at position %lld ms\n", i + 1, num_samples, sample_pos));
+
+		m_pVideo->SetPos(sample_pos);
+		m_pVideo->SetImageGeted(false);
+		m_pVideo->RunWithTimeout(100);
+		m_pVideo->Pause();
+
+		// Get the BGR image (reuse the same buffer)
+		m_pVideo->GetBGRImage(ImBGR, 0, m_w - 1, 0, m_h - 1);
+
+		// Convert to OpenCV Mat for processing (wrapper around existing data, no allocation)
+		cv::Mat frame(m_h, m_w, CV_8UC3, ImBGR.m_pData);
+
+		// Only process the lower half of the frame (where subtitles typically appear)
+		cv::Rect lower_half_roi(0, search_start_y, m_w, lower_half_height);
+		cv::Mat frame_lower = frame(lower_half_roi);
+
+		// Convert to grayscale (reuses gray Mat if already allocated)
+		cv::cvtColor(frame_lower, gray, cv::COLOR_BGR2GRAY);
+
+		// Apply adaptive thresholding to detect text regions
+		// This works well for subtitles with varying backgrounds
+		cv::adaptiveThreshold(gray, binary, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+		                      cv::THRESH_BINARY_INV, 15, 10);
+
+		// Apply morphological operations to connect nearby text pixels (reuses binary Mat)
+		cv::morphologyEx(binary, binary, cv::MORPH_CLOSE, kernel);
+
+		// Find contours (reuses contours vector)
+		contours.clear();
+		cv::findContours(binary, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+		// Check stop flag again after image processing (early exit if user closed window)
+		if (m_bClosing || !m_pPanel || !m_pPanel->m_pSHPanel || m_pPanel->m_pSHPanel->m_bStopAutoDetect || !m_pVideo)
+		{
+			SaveToReportLog("AutoDetectSubtitleBounds: Stop requested during frame processing\n");
+			if (m_pPanel && m_pPanel->m_pSHPanel && !m_bClosing)
+			{
+				m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+			}
+			m_bAutoDetectionRunning = false;
+			SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (stop during processing)\n");
+			return;
+		}
+
+		int valid_subtitles_in_frame = 0;
+
+		// Process each contour
+		for (const auto& contour : contours)
+		{
+			cv::Rect bbox = cv::boundingRect(contour);
+
+			// Filter out very small regions (noise) and very large regions (not text)
+			int lower_half_height = m_h - search_start_y;
+			double area_ratio = (double)(bbox.width * bbox.height) / (double)(m_w * lower_half_height);
+			if (area_ratio < 0.0005 || area_ratio > 0.5)
+			{
+				continue;
+			}
+
+			// Check if it looks like text (wider than tall, reasonable aspect ratio)
+			double aspect_ratio = (double)bbox.width / (double)bbox.height;
+			if (aspect_ratio < 1.5 || aspect_ratio > 20.0)
+			{
+				continue;
+			}
+
+			// Valid subtitle found!
+			valid_subtitles_in_frame++;
+			total_subtitles_found++;
+
+			// Update bounds (convert to percentages, adjusting for lower half ROI)
+			double top = (double)(search_start_y + bbox.y) / (double)m_h;
+			double bottom = (double)(search_start_y + bbox.y + bbox.height) / (double)m_h;
+			double left = (double)bbox.x / (double)m_w;
+			double right = (double)(bbox.x + bbox.width) / (double)m_w;
+
+			bool bounds_changed = false;
+			if (top < top_bound)
+			{
+				SaveToReportLog(wxString::Format("  Top bound updated: %.2f%% -> %.2f%%\n", top_bound * 100, top * 100));
+				top_bound = top;
+				bounds_changed = true;
+			}
+			if (bottom > bottom_bound)
+			{
+				SaveToReportLog(wxString::Format("  Bottom bound updated: %.2f%% -> %.2f%%\n", bottom_bound * 100, bottom * 100));
+				bottom_bound = bottom;
+				bounds_changed = true;
+			}
+			if (left < left_bound)
+			{
+				SaveToReportLog(wxString::Format("  Left bound updated: %.2f%% -> %.2f%%\n", left_bound * 100, left * 100));
+				left_bound = left;
+				bounds_changed = true;
+			}
+			if (right > right_bound)
+			{
+				SaveToReportLog(wxString::Format("  Right bound updated: %.2f%% -> %.2f%%\n", right_bound * 100, right * 100));
+				right_bound = right;
+				bounds_changed = true;
+			}
+
+			if (!bounds_changed)
+			{
+				SaveToReportLog(wxString::Format("  Subtitle found at (%.2f%%, %.2f%%, %.2f%%, %.2f%%) but no bounds updated\n",
+				                                  top * 100, bottom * 100, left * 100, right * 100));
+			}
+			// Note: Removed real-time UI updates to prevent queuing paint events
+			// that could execute after window destruction, causing segfaults
+		}
+
+		if (valid_subtitles_in_frame > 0)
+		{
+			SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Frame %d: Found %d valid subtitle region(s)\n",
+			                                  i + 1, valid_subtitles_in_frame));
+		}
+	}
+
+	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Total subtitles found across all frames: %d\n", total_subtitles_found));
+
+	// Restore original position
+	m_pVideo->SetPos(original_pos);
+	m_pVideo->SetImageGeted(false);
+	m_pVideo->RunWithTimeout(100);
+	m_pVideo->Pause();
+
+	// Hide progress UI (with null check and closing check)
+	if (!m_bClosing && m_pPanel && m_pPanel->m_pSHPanel)
+	{
+		m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+	}
+
+	// Check if we found any text regions
+	if (bottom_bound > top_bound && right_bound > left_bound)
+	{
+		// Add margin for safety
+		top_bound = std::max(0.0, top_bound - margin);
+		bottom_bound = std::min(1.0, bottom_bound + margin);
+		left_bound = std::max(0.0, left_bound - margin);
+		right_bound = std::min(1.0, right_bound + margin);
+
+		// Update config values
+		g_cfg.m_top_video_image_percent_end = top_bound;
+		g_cfg.m_bottom_video_image_percent_end = bottom_bound;
+		g_cfg.m_left_video_image_percent_end = left_bound;
+		g_cfg.m_right_video_image_percent_end = right_bound;
+
+		// Update the UI separating lines (with null checks and stop flag check)
+		if (!m_bClosing && m_pVideoBox && m_pVideoBox->m_pVBox && m_pPanel && m_pPanel->m_pSHPanel && !m_pPanel->m_pSHPanel->m_bStopAutoDetect)
+		{
+			// HSL1 is yellow (top line) - smaller m_pos values are at the top (m_pos=0 is screen top)
+			// HSL2 is green (bottom line) - larger m_pos values are at the bottom (m_pos=1 is screen bottom)
+			// top_bound and bottom_bound are in screen coordinates where 0=top, 1=bottom
+			m_pVideoBox->m_pVBox->m_pHSL1->m_pos = top_bound;      // Top line (yellow, smaller m_pos)
+			m_pVideoBox->m_pVBox->m_pHSL2->m_pos = bottom_bound;   // Bottom line (green, larger m_pos)
+			m_pVideoBox->m_pVBox->m_pVSL1->m_pos = left_bound;
+			m_pVideoBox->m_pVBox->m_pVSL2->m_pos = right_bound;
+
+			// Update the VideoBox size to recalculate separator positions
+			m_pVideoBox->UpdateSize();
+
+			// Force immediate update without queuing events
+			m_pVideoBox->m_pVBox->m_pHSL1->UpdateSL();
+			m_pVideoBox->m_pVBox->m_pHSL2->UpdateSL();
+			m_pVideoBox->m_pVBox->m_pVSL1->UpdateSL();
+			m_pVideoBox->m_pVBox->m_pVSL2->UpdateSL();
+
+			// Note: Skip Refresh() calls here to avoid queuing paint events that might
+			// execute after window destruction if user closed during detection
+		}
+
+		// Update the settings panel to reflect new values (with null check and stop flag check)
+		if (!m_bClosing && m_pPanel && m_pPanel->m_pSSPanel && m_pPanel->m_pSHPanel && !m_pPanel->m_pSHPanel->m_bStopAutoDetect)
+		{
+			m_pPanel->m_pSSPanel->RefreshData();
+		}
+
+		SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Detection successful! Bounds set to: Top=%.2f%%, Bottom=%.2f%%, Left=%.2f%%, Right=%.2f%%\n",
+		                                  top_bound * 100, bottom_bound * 100, left_bound * 100, right_bound * 100));
+	}
+	else
+	{
+		// No text detected, keep default values (full frame)
+		SaveToReportLog("AutoDetectSubtitleBounds: No subtitle regions detected. Using default bounds (full frame).\n");
+	}
+	}
+	catch (const std::bad_alloc& e)
+	{
+		SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Memory allocation failed: %s\n", e.what()));
+		m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+		wxMessageBox(wxT("Auto-detection failed due to insufficient memory. Video resolution may be too high or video too long. Please set subtitle bounds manually."),
+		             wxT("Auto-Detection Error"), wxOK | wxICON_WARNING);
+	}
+	catch (const std::exception& e)
+	{
+		SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Error occurred: %s\n", e.what()));
+		m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+		wxMessageBox(wxString::Format(wxT("Auto-detection failed: %s\nPlease set subtitle bounds manually."), e.what()),
+		             wxT("Auto-Detection Error"), wxOK | wxICON_WARNING);
+	}
+	catch (...)
+	{
+		SaveToReportLog("AutoDetectSubtitleBounds: Unknown error occurred\n");
+		m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+		wxMessageBox(wxT("Auto-detection failed due to an unknown error. Please set subtitle bounds manually."),
+		             wxT("Auto-Detection Error"), wxOK | wxICON_WARNING);
+	}
+
+	// Clear flag to indicate auto-detection has finished
+	m_bAutoDetectionRunning = false;
+	SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (completed)\n");
 }
 
 void CMainFrame::OnFileOpenVideo(int type)
@@ -997,16 +1432,29 @@ void CMainFrame::OnFileOpenVideo(int type)
 	dw = rVB.width-rcVW.width;
 	dh = rVB.height-rcVW.height;
 
-	ww = (int)((double)rc.width*0.49);
+	int legend_width = 140;
+	int legend_gap = 5;
+	int available_width = (int)((double)rc.width*0.49) - legend_width - legend_gap;
+
+	ww = available_width;
 	hh = (int)((double)rcP.y*0.98);
 
 	wmax = ((hh-dh)*m_w)/m_h;
 	if ( wmax > ww-dw ) wmax = ww-dw;
-	
+
 	w = wmax;
 	h = ((w*m_h)/m_w);
 
-	int x = ((rc.width/2-(w+dw))*3)/4, y = 5;
+	int y = 5;
+
+	// Position legend panel
+	if (m_pLegendPanel)
+	{
+		m_pLegendPanel->SetSize(m_dx, y, legend_width, 100);
+		m_pLegendPanel->Raise();
+	}
+
+	int x = m_dx + legend_width + legend_gap + ((available_width-(w+dw))*3)/4;
 	m_pVideoBox->SetSize(x, y, (w+dw+10), (h+dh+10));
 	m_pVideoBox->SetSize(x, y, (w+dw), (h+dh));
 
@@ -1075,13 +1523,13 @@ void CMainFrame::OnFileOpenVideo(int type)
 
 	m_EndTimeStr = wxT("/") + ConvertVideoTime(m_pVideo->m_Duration);
 
-	if ( !m_timer.IsRunning() ) 
+	if ( !m_timer.IsRunning() )
 	{
 		m_ct = -1;
 
-		wxTimerEvent event;
+		wxTimerEvent event(m_timer);
 		CMainFrame::OnTimer(event);
-		
+
 		m_timer.Start(100);
 	}
 
@@ -1091,11 +1539,19 @@ void CMainFrame::OnFileOpenVideo(int type)
 		m_pVideo->SetPos(Cur);
 	}
 
-	m_blnReopenVideo = false;	
+	bool shouldAutoDetect = !m_blnReopenVideo;  // Save before resetting
+	m_blnReopenVideo = false;
 
 	this->Enable();
 
 	m_pVideoBox->SetFocus();
+
+	// Auto-detect subtitle bounds after UI is ready (using timer for safety)
+	if (shouldAutoDetect && !m_bClosing)
+	{
+		SaveToReportLog("OnFileOpenVideo: Scheduling auto-detection via timer\n");
+		m_autodetect_timer.StartOnce(100);  // Fire once after 100ms
+	}
 }
 
 void CMainFrame::OnPlayPause(wxCommandEvent& event)
@@ -2148,14 +2604,66 @@ wxString ConvertVideoTime(s64 pos)
 	return str;
 }
 
+void CMainFrame::OnAutoDetectTimer(wxTimerEvent& WXUNUSED(event))
+{
+	SaveToReportLog("OnAutoDetectTimer: Timer fired, starting auto-detection\n");
+	AutoDetectSubtitleBounds();
+}
+
 void CMainFrame::OnQuit(wxCommandEvent& event)
 {
 	Close(true);
 }
 
-void CMainFrame::OnClose(wxCloseEvent& WXUNUSED(event))
+void CMainFrame::OnClose(wxCloseEvent& event)
 {
-	if ( m_timer.IsRunning() ) 
+	// Stop auto-detection timer if it's running (not started yet)
+	if (m_autodetect_timer.IsRunning())
+	{
+		m_autodetect_timer.Stop();
+		SaveToReportLog("OnClose: Auto-detection timer stopped\n");
+	}
+
+	// If auto-detection is actively running, we MUST wait for it to finish
+	// because it's running synchronously on the main thread accessing members
+	if (m_bAutoDetectionRunning)
+	{
+		SaveToReportLog("OnClose: Auto-detection is running, signaling stop...\n");
+
+		// Set stop flag
+		m_bClosing = true;
+		if (m_pPanel && m_pPanel->m_pSHPanel)
+		{
+			m_pPanel->m_pSHPanel->m_bStopAutoDetect = true;
+		}
+
+		// Veto the close event if we can, to prevent destruction during auto-detection
+		if (event.CanVeto())
+		{
+			SaveToReportLog("OnClose: Vetoing close, will retry after stop\n");
+			event.Veto();
+
+			// Schedule a close retry after a short delay
+			wxTimer* retryTimer = new wxTimer(this);
+			Bind(wxEVT_TIMER, [this, retryTimer](wxTimerEvent&) {
+				if (!m_bAutoDetectionRunning)
+				{
+					SaveToReportLog("OnClose: Auto-detection stopped, closing now\n");
+					retryTimer->Stop();
+					delete retryTimer;
+					Close(true);  // Force close
+				}
+			}, retryTimer->GetId());
+			retryTimer->Start(100);  // Check every 100ms
+			return;
+		}
+	}
+
+	// If we get here, either no auto-detection running or forced close
+	m_bClosing = true;
+	SaveToReportLog("OnClose: Proceeding with close\n");
+
+	if ( m_timer.IsRunning() )
 	{
 		m_timer.Stop();
 	}

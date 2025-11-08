@@ -18,6 +18,7 @@
 #include <wx/panel.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
+#include <wx/gauge.h>
 #include <thread>
 #include <mutex>
 #include "SSOWnd.h"
@@ -44,14 +45,22 @@ public:
 
 	CButton	*m_pClear;
 	CButton	*m_pRun;
-	
+
 	wxPanel		*m_pP1;
+	wxPanel     *m_pAutoDetectPanel;  // Sub-panel for auto-detection controls
+    wxPanel     *m_pSearchPanel;      // Sub-panel for search controls
 
 	CStaticText  *m_plblBT1;
 	CTextCtrl  *m_plblBTA1;
 	CStaticText  *m_plblBT2;
 	CTextCtrl  *m_plblBTA2;
-	
+
+	// Auto-detection progress controls
+	wxGauge     *m_pAutoDetectProgress;
+	CStaticText *m_plblAutoDetectInfo;
+	CButton     *m_pBtnStopAutoDetect;
+	bool        m_bStopAutoDetect;
+
 	CSSOWnd		*m_pParent;
 
 	CMainFrame	*m_pMF;
@@ -69,6 +78,15 @@ public:
 	void UpdateSize() override;
 	void RefreshData() override;
 
+	// Auto-detection progress methods
+	void ShowAutoDetectProgress(bool show);
+	void UpdateAutoDetectProgress(int current, int total);
+	void OnBnClickedStopAutoDetect(wxCommandEvent& event);
+
 private:
+	// Label strings for auto-detect controls (must persist for CButton/CStaticText lifetime)
+	wxString m_strAutoDetectInfoLabel;
+	wxString m_strStopDetectionLabel;
+
    DECLARE_EVENT_TABLE()
 };

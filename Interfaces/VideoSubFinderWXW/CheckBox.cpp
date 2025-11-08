@@ -14,7 +14,6 @@
 //																				//
 //////////////////////////////////////////////////////////////////////////////////
 
-#pragma once
 #include "CheckBox.h"
 #include <wx/dcmemory.h>
 #include <wx/sizer.h>

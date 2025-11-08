@@ -443,7 +443,14 @@ public:
 	{
 		custom_assert(size > 0, "custom_buffer(int size): not: size > 0");
 
-		m_pData = new T[size];
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Walloc-size-larger-than="
+#endif
+		m_pData = new T[static_cast<size_t>(size)];
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 		custom_assert(m_pData != NULL, "custom_buffer<T>::custom_buffer(int size): not: m_pData != NULL");
 		m_size = size;
 		m_need_to_release = true;
@@ -453,7 +460,14 @@ public:
 	{
 		custom_assert(size > 0, "custom_buffer(int size, T val): not: size > 0");
 
-		m_pData = new T[size];
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Walloc-size-larger-than="
+#endif
+		m_pData = new T[static_cast<size_t>(size)];
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 		custom_assert(m_pData != NULL, "custom_buffer<T>::custom_buffer(int size, T val): not: m_pData != NULL");
 		m_size = size;
 		m_need_to_release = true;
@@ -495,7 +509,7 @@ public:
 
 			if (m_need_to_release)
 			{
-				m_pData = new T[m_size];
+				m_pData = new T[static_cast<size_t>(m_size)];
 				custom_assert(m_pData != NULL, "custom_buffer(const custom_buffer<T> &obj): not: m_pData != NULL");
 				for (int i = 0; i < m_size; i++)
 				{
@@ -528,7 +542,7 @@ public:
 				if (m_size != obj.m_size)
 				{
 					delete[] m_pData;
-					m_pData = new T[obj.m_size];
+					m_pData = new T[static_cast<size_t>(obj.m_size)];
 					custom_assert(m_pData != NULL, "custom_buffer<T>::operator= (const custom_buffer<T> &obj): not: m_pData != NULL");
 				}
 			}
@@ -541,7 +555,7 @@ public:
 		{
 			if (obj.m_need_to_release)
 			{
-				m_pData = new T[obj.m_size];
+				m_pData = new T[static_cast<size_t>(obj.m_size)];
 				custom_assert(m_pData != NULL, "custom_buffer<T>::operator= (const custom_buffer<T> &obj): not: m_pData != NULL");
 			}
 		}
@@ -648,7 +662,7 @@ public:
 			}
 			else
 			{
-				m_pData = new T[size];
+				m_pData = new T[static_cast<size_t>(size)];
 				custom_assert(m_pData != NULL, "custom_buffer<T>::set_size(int size): not: m_pData != NULL");
 				m_size = size;
 				m_need_to_release = true;
@@ -730,7 +744,14 @@ public:
 	{
 		custom_assert(size > 0, "simple_buffer<T>::simple_buffer(int size, T val): not: size > 0");
 
-		this->m_pData = new T[size];
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Walloc-size-larger-than="
+#endif
+		this->m_pData = new T[static_cast<size_t>(size)];
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 		custom_assert(this->m_pData != NULL, "simple_buffer<T>::simple_buffer(int size, T val): not: this->m_pData != NULL");
 		this->m_size = size;
 		this->m_need_to_release = true;
@@ -764,7 +785,7 @@ public:
 		{
 			if (this->m_need_to_release)
 			{
-				this->m_pData = new T[this->m_size];
+				this->m_pData = new T[static_cast<size_t>(this->m_size)];
 				custom_assert(this->m_pData != NULL, "simple_buffer<T>::simple_buffer(const simple_buffer<T>& obj): not: this->m_pData != NULL");
 				memcpy(this->m_pData, obj.m_pData, this->m_size * sizeof(T));
 			}
@@ -796,7 +817,7 @@ public:
 
 		if (this->m_need_to_release)
 		{
-			this->m_pData = new T[this->m_size];
+			this->m_pData = new T[static_cast<size_t>(this->m_size)];
 			custom_assert(this->m_pData != NULL, "simple_buffer<T>::simple_buffer(const simple_buffer<T>& obj): not: this->m_pData != NULL");
 			memcpy(this->m_pData, obj.m_pData + offset, this->m_size * sizeof(T));
 		}
@@ -815,7 +836,7 @@ public:
 				if (this->m_size != obj.m_size)
 				{
 					delete[] this->m_pData;
-					this->m_pData = new T[obj.m_size];
+					this->m_pData = new T[static_cast<size_t>(obj.m_size)];
 					custom_assert(this->m_pData != NULL, "simple_buffer<T>::operator= (const simple_buffer<T>& obj): not: this->m_pData != NULL");
 				}
 			}
@@ -828,7 +849,7 @@ public:
 		{
 			if (obj.m_need_to_release)
 			{
-				this->m_pData = new T[obj.m_size];
+				this->m_pData = new T[static_cast<size_t>(obj.m_size)];
 				custom_assert(this->m_pData != NULL, "simple_buffer<T>::operator= (const simple_buffer<T>& obj): not: this->m_pData != NULL");
 			}
 		}
@@ -859,7 +880,7 @@ public:
 		{
 			T* pOldData = this->m_pData;
 
-			this->m_pData = new T[new_size];
+			this->m_pData = new T[static_cast<size_t>(new_size)];
 			custom_assert(this->m_pData != NULL, "operator+=(custom_buffer<T>& obj): not: this->m_pData != NULL");
 			this->m_need_to_release = true;
 

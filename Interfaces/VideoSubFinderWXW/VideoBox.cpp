@@ -477,13 +477,16 @@ void CVideoWindow::Init()
 {
 	m_pVideoWnd = new CVideoWnd(this);
 
-	m_pHSL1 = new CSeparatingLine(this, 200, 3, 7, 3, 100, 110, 50, 0, g_cfg.m_video_box_separating_line_colour, g_cfg.m_video_box_separating_line_border_colour);
-	m_pHSL1->m_pos = 0;
-	m_pHSL2 = new CSeparatingLine(this, 200, 3, 7, 3, 140, 150, 50, 0, g_cfg.m_video_box_separating_line_colour, g_cfg.m_video_box_separating_line_border_colour);
-	m_pHSL2->m_pos = 1;
-	m_pVSL1 = new CSeparatingLine(this, 3, 100, 3, 7, 100, 110, 50, 1, g_cfg.m_video_box_separating_line_colour, g_cfg.m_video_box_separating_line_border_colour);
+	// Create separating lines with distinct colors for debugging:
+	// HSL1 = top (yellow), HSL2 = bottom (green), VSL1 = left (red), VSL2 = right (blue)
+	// m_pos coordinate: 0 = screen top, 1 = screen bottom
+	m_pHSL1 = new CSeparatingLine(this, 200, 3, 7, 3, 100, 110, 50, 0, wxColour(255, 255, 0), wxColour(200, 200, 0));  // Top - Yellow
+	m_pHSL1->m_pos = 0;  // Start at top
+	m_pHSL2 = new CSeparatingLine(this, 200, 3, 7, 3, 140, 150, 50, 0, wxColour(0, 255, 0), wxColour(0, 200, 0));      // Bottom - Green
+	m_pHSL2->m_pos = 1;  // Start at bottom
+	m_pVSL1 = new CSeparatingLine(this, 3, 100, 3, 7, 100, 110, 50, 1, wxColour(255, 0, 0), wxColour(200, 0, 0));      // Left - Red
 	m_pVSL1->m_pos = 0;
-	m_pVSL2 = new CSeparatingLine(this, 3, 100, 3, 7, 140, 150, 50, 1, g_cfg.m_video_box_separating_line_colour, g_cfg.m_video_box_separating_line_border_colour);
+	m_pVSL2 = new CSeparatingLine(this, 3, 100, 3, 7, 140, 150, 50, 1, wxColour(0, 0, 255), wxColour(0, 0, 200));      // Right - Blue
 	m_pVSL2->m_pos = 1;
 
 	m_pHSL1->Raise();
@@ -1071,7 +1074,7 @@ void CVideoBox::OnKeyUp(wxKeyEvent& event)
 				if (m_timer.IsRunning())
 				{
 					m_timer.Stop();
-					wxTimerEvent te;
+					wxTimerEvent te(m_timer);
 					this->OnTimer(te);
 				}
 			}
