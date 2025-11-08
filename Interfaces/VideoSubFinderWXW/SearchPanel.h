@@ -60,6 +60,7 @@ public:
 	CStaticText *m_plblAutoDetectInfo;
 	CButton     *m_pBtnStopAutoDetect;
 	bool        m_bStopAutoDetect;
+	bool        m_bPausedAutoDetect;
 
 	CSSOWnd		*m_pParent;
 
@@ -87,6 +88,7 @@ private:
 	// Label strings for auto-detect controls (must persist for CButton/CStaticText lifetime)
 	wxString m_strAutoDetectInfoLabel;
 	wxString m_strStopDetectionLabel;
+	wxString m_strResumeDetectionLabel;
 
    DECLARE_EVENT_TABLE()
 };

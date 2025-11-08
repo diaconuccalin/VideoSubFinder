@@ -464,6 +464,7 @@ public:
 	wxString	m_last_video_file_path;
 	s64			m_last_video_begin_time;
 	s64			m_last_video_end_time;
+	s64			m_last_video_current_time;
 	int			m_last_video_open_type;
 	wxString	m_last_saved_sub_file_path;
 	wxString	m_last_specified_settings_file_path;

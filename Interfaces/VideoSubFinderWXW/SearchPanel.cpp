@@ -41,6 +41,11 @@ CSearchPanel::CSearchPanel(CSSOWnd* pParent)
 	// Initialize label strings for auto-detect controls
 	m_strAutoDetectInfoLabel = wxT("");
 	m_strStopDetectionLabel = wxT("Stop Detection");
+	m_strResumeDetectionLabel = wxT("Resume Detection");
+
+	// Initialize flags
+	m_bStopAutoDetect = false;
+	m_bPausedAutoDetect = false;
 }
 
 CSearchPanel::~CSearchPanel()
@@ -492,10 +497,12 @@ void CSearchPanel::ShowAutoDetectProgress(bool show)
 		m_pAutoDetectProgress->SetValue(0);
 		wxString detectingLabel = wxT("Detecting subtitle boundaries...");
 		m_plblAutoDetectInfo->SetLabel(detectingLabel);
+		m_pBtnStopAutoDetect->SetLabel(m_strStopDetectionLabel);  // Ensure button shows "Stop Detection"
 		m_pBtnStopAutoDetect->Enable(true);
 		m_pBtnStopAutoDetect->Show();
 		m_pBtnStopAutoDetect->Raise();
 		m_bStopAutoDetect = false;
+		m_bPausedAutoDetect = false;  // Reset pause state when starting
 		m_pAutoDetectPanel->Refresh();
 		m_pAutoDetectPanel->Update();
 		wxYield();  // Ensure UI updates immediately
@@ -504,8 +511,10 @@ void CSearchPanel::ShowAutoDetectProgress(bool show)
 	{
 		SaveToReportLog("ShowAutoDetectProgress: Disabling stop button, keeping progress visible\n");
 		// Keep the progress bar and text visible, just disable the stop button
-		// Don't reset progress value or clear the label
+		// Reset button label and pause state when detection finishes
+		m_pBtnStopAutoDetect->SetLabel(m_strStopDetectionLabel);
 		m_pBtnStopAutoDetect->Enable(false);
+		m_bPausedAutoDetect = false;  // Reset pause state when done
 		m_pAutoDetectPanel->Refresh();
 	}
 }
@@ -532,7 +541,21 @@ void CSearchPanel::UpdateAutoDetectProgress(int current, int total)
 
 void CSearchPanel::OnBnClickedStopAutoDetect(wxCommandEvent& event)
 {
-	m_bStopAutoDetect = true;
-	SaveToReportLog("Auto-detection stop requested by user\n");
+	if (m_bPausedAutoDetect)
+	{
+		// Currently paused, so resume detection
+		m_bPausedAutoDetect = false;
+		m_pBtnStopAutoDetect->SetLabel(m_strStopDetectionLabel);
+		SaveToReportLog("Auto-detection resumed by user\n");
+	}
+	else
+	{
+		// Currently running, so pause detection
+		m_bPausedAutoDetect = true;
+		m_pBtnStopAutoDetect->SetLabel(m_strResumeDetectionLabel);
+		SaveToReportLog("Auto-detection paused by user\n");
+	}
+
+	m_pAutoDetectPanel->Refresh();
 }
 

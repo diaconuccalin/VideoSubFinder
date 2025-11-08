@@ -366,6 +366,8 @@ CMainFrame::CMainFrame(const wxString& title)
 	m_FileName = "";
 	m_dt = 0;
 
+	m_last_video_current_time = 0;
+
 	m_type = 0;
 }
 
@@ -677,6 +679,7 @@ void CMainFrame::Init()
 		ReadProperty(previous_vido_settings, m_last_video_file_path, "last_video_file_path");
 		ReadProperty(previous_vido_settings, m_last_video_begin_time, "last_video_begin_time");
 		ReadProperty(previous_vido_settings, m_last_video_end_time, "last_video_end_time");
+		ReadProperty(previous_vido_settings, m_last_video_current_time, "last_video_current_time");
 		ReadProperty(previous_vido_settings, m_last_video_open_type, "last_video_open_type");
 		ReadProperty(previous_vido_settings, m_last_saved_sub_file_path, "last_saved_sub_file_path");
 		ReadProperty(previous_vido_settings, m_last_specified_settings_file_path, "last_specified_settings_file_path");
@@ -817,6 +820,7 @@ void CMainFrame::OnFileReOpenVideo(wxCommandEvent& event)
 {
 	if (m_FileName.size() > 0)
 	{
+		m_dt = m_BegTime;  // Start from beginning when reopening
 		m_blnReopenVideo = true;
 		OnFileOpenVideo(m_type);
 	}
@@ -824,11 +828,13 @@ void CMainFrame::OnFileReOpenVideo(wxCommandEvent& event)
 
 void CMainFrame::OnFileOpenVideoOpenCV(wxCommandEvent& event)
 {
+	m_dt = 0;  // Start from beginning for new video opens
 	OnFileOpenVideo(0);
 }
 
 void CMainFrame::OnFileOpenVideoFFMPEG(wxCommandEvent& event)
 {
+	m_dt = 0;  // Start from beginning for new video opens
 	OnFileOpenVideo(1);
 }
 
@@ -976,13 +982,14 @@ void CMainFrame::AutoDetectSubtitleBounds()
 		const double lower_half_start = 0.5;  // Only search bottom 50% of frame for subtitles
 
 		s64 original_pos = m_pVideo->GetPos();  // Save current position
+		s64 start_pos = original_pos;  // Start detection from current position
 
-		// Calculate number of samples based on video duration
-		s64 video_duration_ms = m_EndTime - m_BegTime;
-		int num_samples = (int)(video_duration_ms / sample_interval_ms) + 1;
+		// Calculate number of samples based on remaining video duration from current position
+		s64 remaining_duration_ms = m_EndTime - start_pos;
+		int num_samples = (int)(remaining_duration_ms / sample_interval_ms) + 1;
 
-	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Will sample %d frames (every %.1f seconds) from video duration of %.1f seconds\n",
-	                                  num_samples, sample_interval_ms / 1000.0, video_duration_ms / 1000.0));
+	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Will sample %d frames (every %.1f seconds) from position %.1f to %.1f seconds\n",
+	                                  num_samples, sample_interval_ms / 1000.0, start_pos / 1000.0, m_EndTime / 1000.0));
 
 	// Initialize bounds to full frame (will be narrowed down)
 	double top_bound = 1.0;     // Start from bottom, work up
@@ -1061,7 +1068,25 @@ void CMainFrame::AutoDetectSubtitleBounds()
 			return;
 		}
 
-		s64 sample_pos = m_BegTime + (s64)(i * sample_interval_ms);
+		// Check if paused - wait until resumed or stopped
+		while (m_pPanel && m_pPanel->m_pSHPanel && m_pPanel->m_pSHPanel->m_bPausedAutoDetect)
+		{
+			// Check if user wants to stop while paused
+			if (m_bClosing || m_pPanel->m_pSHPanel->m_bStopAutoDetect)
+			{
+				SaveToReportLog("AutoDetectSubtitleBounds: Stopped while paused\n");
+				m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+				m_bAutoDetectionRunning = false;
+				SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (stopped while paused)\n");
+				return;
+			}
+
+			// Sleep briefly and process events to keep UI responsive
+			wxMilliSleep(100);
+			wxYield();
+		}
+
+		s64 sample_pos = start_pos + (s64)(i * sample_interval_ms);
 
 		// Skip if we've gone past the end time
 		if (sample_pos > m_EndTime)
@@ -1183,8 +1208,49 @@ void CMainFrame::AutoDetectSubtitleBounds()
 				SaveToReportLog(wxString::Format("  Subtitle found at (%.2f%%, %.2f%%, %.2f%%, %.2f%%) but no bounds updated\n",
 				                                  top * 100, bottom * 100, left * 100, right * 100));
 			}
-			// Note: Removed real-time UI updates to prevent queuing paint events
-			// that could execute after window destruction, causing segfaults
+			else
+			{
+				// Live update the UI with bounds (with safety checks)
+				if (!m_bClosing && m_pVideoBox && m_pVideoBox->m_pVBox && m_pPanel && m_pPanel->m_pSHPanel && !m_pPanel->m_pSHPanel->m_bStopAutoDetect)
+				{
+					// Add margin for live display
+					double live_top = std::max(0.0, top_bound - margin);
+					double live_bottom = std::min(1.0, bottom_bound + margin);
+					double live_left = std::max(0.0, left_bound - margin);
+					double live_right = std::min(1.0, right_bound + margin);
+
+					// Update config values
+					g_cfg.m_top_video_image_percent_end = live_top;
+					g_cfg.m_bottom_video_image_percent_end = live_bottom;
+					g_cfg.m_left_video_image_percent_end = live_left;
+					g_cfg.m_right_video_image_percent_end = live_right;
+
+					// Update separator line positions
+					m_pVideoBox->m_pVBox->m_pHSL1->m_pos = live_top;
+					m_pVideoBox->m_pVBox->m_pHSL2->m_pos = live_bottom;
+					m_pVideoBox->m_pVBox->m_pVSL1->m_pos = live_left;
+					m_pVideoBox->m_pVBox->m_pVSL2->m_pos = live_right;
+
+					// Update separator positions
+					m_pVideoBox->UpdateSize();
+					m_pVideoBox->m_pVBox->m_pHSL1->UpdateSL();
+					m_pVideoBox->m_pVBox->m_pHSL2->UpdateSL();
+					m_pVideoBox->m_pVBox->m_pVSL1->UpdateSL();
+					m_pVideoBox->m_pVBox->m_pVSL2->UpdateSL();
+
+					// Refresh the video box to show updated boundaries
+					m_pVideoBox->m_pVBox->Refresh();
+
+					// Update settings panel
+					if (m_pPanel->m_pSSPanel)
+					{
+						m_pPanel->m_pSSPanel->RefreshData();
+					}
+
+					// Process pending events to update display
+					wxYield();
+				}
+			}
 		}
 
 		if (valid_subtitles_in_frame > 0)
@@ -1478,10 +1544,13 @@ void CMainFrame::OnFileOpenVideo(int type)
 
 	this->Update();
 
+	// Save the desired start position before m_dt gets overwritten by frame duration calculation
+	s64 desired_start_pos = m_dt;
+
 	m_pVideo->SetImageGeted(false);
 	m_pVideo->RunWithTimeout(100);
 	m_pVideo->Pause();
-	
+
 	m_dt = Cur = m_pVideo->GetPos();
 
 	m_pVideo->SetImageGeted(false);
@@ -1505,7 +1574,7 @@ void CMainFrame::OnFileOpenVideo(int type)
 
 	if ((m_dt >= 500) || (m_dt <= 0)) m_dt = 1000.0/25.0;
 
-	Cur = m_BegTime;
+	Cur = desired_start_pos;
 	m_pVideo->SetPos(Cur);
 	
 	m_pVideo->SetImageGeted(false);
@@ -1533,13 +1602,6 @@ void CMainFrame::OnFileOpenVideo(int type)
 		m_timer.Start(100);
 	}
 
-	if (m_blnReopenVideo == false)
-	{
-		Cur = m_dt;
-		m_pVideo->SetPos(Cur);
-	}
-
-	bool shouldAutoDetect = !m_blnReopenVideo;  // Save before resetting
 	m_blnReopenVideo = false;
 
 	this->Enable();
@@ -1547,7 +1609,7 @@ void CMainFrame::OnFileOpenVideo(int type)
 	m_pVideoBox->SetFocus();
 
 	// Auto-detect subtitle bounds after UI is ready (using timer for safety)
-	if (shouldAutoDetect && !m_bClosing)
+	if (!m_bClosing)
 	{
 		SaveToReportLog("OnFileOpenVideo: Scheduling auto-detection via timer\n");
 		m_autodetect_timer.StartOnce(100);  // Fire once after 100ms
@@ -2677,6 +2739,7 @@ void CMainFrame::OnClose(wxCloseEvent& event)
 			m_last_video_file_path = m_FileName;
 			m_last_video_begin_time = m_BegTime;
 			m_last_video_end_time = m_EndTime;
+			m_last_video_current_time = m_ct;
 			m_last_video_open_type = m_type;
 		}
 
@@ -2685,6 +2748,7 @@ void CMainFrame::OnClose(wxCloseEvent& event)
 			WriteProperty(fout, m_last_video_file_path, "last_video_file_path");
 			WriteProperty(fout, m_last_video_begin_time, "last_video_begin_time");
 			WriteProperty(fout, m_last_video_end_time, "last_video_end_time");
+			WriteProperty(fout, m_last_video_current_time, "last_video_current_time");
 			WriteProperty(fout, m_last_video_open_type, "last_video_open_type");
 		}
 
@@ -2765,6 +2829,7 @@ void CMainFrame::OnFileOpenPreviousVideo(wxCommandEvent& event)
 		m_FileName = m_last_video_file_path;
 		m_BegTime = m_last_video_begin_time;
 		m_EndTime = m_last_video_end_time;
+		m_dt = m_last_video_current_time;
 		m_type = m_last_video_open_type;
 
 		m_blnReopenVideo = true;
