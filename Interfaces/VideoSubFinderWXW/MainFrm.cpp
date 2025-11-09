@@ -23,6 +23,8 @@
 #include <wx/fontenum.h>
 #include <wx/textwrapper.h>
 #include <chrono>
+#include <deque>
+#include <numeric>
 #include "Control.h"
 
 CMainFrame *g_pMF;
@@ -978,7 +980,7 @@ void CMainFrame::AutoDetectSubtitleBounds()
 		}
 
 		const s64 sample_interval_ms = 1500;  // Sample every 1.5 seconds
-		const double margin = 0.05;  // 5% margin for safety
+		const double margin = 0.005;  // 0.5% margin for safety
 		const double lower_half_start = 0.5;  // Only search bottom 50% of frame for subtitles
 
 		s64 original_pos = m_pVideo->GetPos();  // Save current position
@@ -990,12 +992,6 @@ void CMainFrame::AutoDetectSubtitleBounds()
 
 	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Will sample %d frames (every %.1f seconds) from position %.1f to %.1f seconds\n",
 	                                  num_samples, sample_interval_ms / 1000.0, start_pos / 1000.0, m_EndTime / 1000.0));
-
-	// Initialize bounds to full frame (will be narrowed down)
-	double top_bound = 1.0;     // Start from bottom, work up
-	double bottom_bound = 0.0;  // Start from top, work down
-	double left_bound = 1.0;    // Start from right, work left
-	double right_bound = 0.0;   // Start from left, work right
 
 	// Calculate buffer size
 	size_t buffer_size = (size_t)m_w * (size_t)m_h * 3;
@@ -1026,15 +1022,8 @@ void CMainFrame::AutoDetectSubtitleBounds()
 	int search_start_y = (int)(m_h * lower_half_start);
 	int lower_half_height = m_h - search_start_y;
 
-	cv::Mat gray, binary, kernel;
-	std::vector<std::vector<cv::Point>> contours;
-
 	try
 	{
-		// Preallocate gray and binary matrices
-		gray = cv::Mat(lower_half_height, m_w, CV_8UC1);
-		binary = cv::Mat(lower_half_height, m_w, CV_8UC1);
-		kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
 		SaveToReportLog("AutoDetectSubtitleBounds: OpenCV buffers allocated successfully.\n");
 	}
 	catch (const std::bad_alloc& e)
@@ -1050,9 +1039,20 @@ void CMainFrame::AutoDetectSubtitleBounds()
 
 	SaveToReportLog("AutoDetectSubtitleBounds: All buffers allocated successfully. Starting frame sampling...\n");
 
+	// Temporal filtering: store contours from recent frames with detected subtitles
+	struct ContourInfo {
+		int x, y, w, h;
+	};
+	std::deque<std::vector<ContourInfo>> recent_subs_frames;
+
+	// Final bounds (initialized to invalid values)
+	int top_limit = -1;
+	int bottom_limit = -1;
+	int left_limit = -1;
+	int right_limit = -1;
+
 	// Sample frames at regular intervals
-	int frames_processed = 0;
-	int total_subtitles_found = 0;
+	int total_frames_processed = 0;
 	for (int i = 0; i < num_samples; i++)
 	{
 		// Check if window is closing or user clicked stop button
@@ -1100,8 +1100,6 @@ void CMainFrame::AutoDetectSubtitleBounds()
 			m_pPanel->m_pSHPanel->UpdateAutoDetectProgress(i + 1, num_samples);
 		}
 
-		SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Processing frame %d/%d at position %lld ms\n", i + 1, num_samples, sample_pos));
-
 		m_pVideo->SetPos(sample_pos);
 		m_pVideo->SetImageGeted(false);
 		m_pVideo->RunWithTimeout(100);
@@ -1117,150 +1115,174 @@ void CMainFrame::AutoDetectSubtitleBounds()
 		cv::Rect lower_half_roi(0, search_start_y, m_w, lower_half_height);
 		cv::Mat frame_lower = frame(lower_half_roi);
 
-		// Convert to grayscale (reuses gray Mat if already allocated)
+		// Convert to grayscale
+		cv::Mat gray;
 		cv::cvtColor(frame_lower, gray, cv::COLOR_BGR2GRAY);
 
-		// Apply adaptive thresholding to detect text regions
-		// This works well for subtitles with varying backgrounds
-		cv::adaptiveThreshold(gray, binary, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C,
-		                      cv::THRESH_BINARY_INV, 15, 10);
+		// Apply binary thresholding
+		cv::Mat thresh;
+		cv::threshold(gray, thresh, 150, 255, cv::THRESH_BINARY_INV);
 
-		// Apply morphological operations to connect nearby text pixels (reuses binary Mat)
-		cv::morphologyEx(binary, binary, cv::MORPH_CLOSE, kernel);
+		// Invert threshold (findContours expects white objects on black background)
+		thresh = 255 - thresh;
 
-		// Find contours (reuses contours vector)
-		contours.clear();
-		cv::findContours(binary, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+		// Find contours
+		std::vector<std::vector<cv::Point>> contours;
+		cv::findContours(thresh, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
-		// Check stop flag again after image processing (early exit if user closed window)
-		if (m_bClosing || !m_pPanel || !m_pPanel->m_pSHPanel || m_pPanel->m_pSHPanel->m_bStopAutoDetect || !m_pVideo)
+		// Filter contours based on area and aspect ratio
+		std::vector<ContourInfo> subs_contours;
+		double img_area = lower_half_height * m_w;
+		
+		for (const auto& cnt : contours)
 		{
-			SaveToReportLog("AutoDetectSubtitleBounds: Stop requested during frame processing\n");
-			if (m_pPanel && m_pPanel->m_pSHPanel && !m_bClosing)
+			cv::Rect rect = cv::boundingRect(cnt);
+			double area = cv::contourArea(cnt);
+			double aspect_ratio = (double)rect.width / (double)rect.height;
+
+			// Filter: 7 < area < 0.0004 * image_area and aspect_ratio < 1.5
+			if (area > 7 && area < 0.0004 * img_area && aspect_ratio < 1.5)
 			{
-				m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+				subs_contours.push_back({rect.x, rect.y, rect.width, rect.height});
 			}
-			m_bAutoDetectionRunning = false;
-			SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (stop during processing)\n");
-			return;
 		}
 
-		int valid_subtitles_in_frame = 0;
-
-		// Process each contour
-		for (const auto& contour : contours)
+		// If less than 4 contours found, discard all (subtitles usually have multiple characters)
+		if (subs_contours.size() < 4)
 		{
-			cv::Rect bbox = cv::boundingRect(contour);
+			subs_contours.clear();
+		}
 
-			// Filter out very small regions (noise) and very large regions (not text)
-			int lower_half_height = m_h - search_start_y;
-			double area_ratio = (double)(bbox.width * bbox.height) / (double)(m_w * lower_half_height);
-			if (area_ratio < 0.0005 || area_ratio > 0.5)
-			{
-				continue;
-			}
+		// Store most recent 5 frames with detected subtitles
+		if (!subs_contours.empty())
+		{
+			recent_subs_frames.push_back(subs_contours);
+		}
 
-			// Check if it looks like text (wider than tall, reasonable aspect ratio)
-			double aspect_ratio = (double)bbox.width / (double)bbox.height;
-			if (aspect_ratio < 1.5 || aspect_ratio > 20.0)
-			{
-				continue;
-			}
+		// Temporal filter based on vertical position distribution
+		if (recent_subs_frames.size() > 4)
+		{
+			// Calculate average y position of contours across all recent frames
+			std::vector<int> y_positions;
+			std::vector<int> heights;
 
-			// Valid subtitle found!
-			valid_subtitles_in_frame++;
-			total_subtitles_found++;
-
-			// Update bounds (convert to percentages, adjusting for lower half ROI)
-			double top = (double)(search_start_y + bbox.y) / (double)m_h;
-			double bottom = (double)(search_start_y + bbox.y + bbox.height) / (double)m_h;
-			double left = (double)bbox.x / (double)m_w;
-			double right = (double)(bbox.x + bbox.width) / (double)m_w;
-
-			bool bounds_changed = false;
-			if (top < top_bound)
+			for (const auto& frame_contours : recent_subs_frames)
 			{
-				SaveToReportLog(wxString::Format("  Top bound updated: %.2f%% -> %.2f%%\n", top_bound * 100, top * 100));
-				top_bound = top;
-				bounds_changed = true;
-			}
-			if (bottom > bottom_bound)
-			{
-				SaveToReportLog(wxString::Format("  Bottom bound updated: %.2f%% -> %.2f%%\n", bottom_bound * 100, bottom * 100));
-				bottom_bound = bottom;
-				bounds_changed = true;
-			}
-			if (left < left_bound)
-			{
-				SaveToReportLog(wxString::Format("  Left bound updated: %.2f%% -> %.2f%%\n", left_bound * 100, left * 100));
-				left_bound = left;
-				bounds_changed = true;
-			}
-			if (right > right_bound)
-			{
-				SaveToReportLog(wxString::Format("  Right bound updated: %.2f%% -> %.2f%%\n", right_bound * 100, right * 100));
-				right_bound = right;
-				bounds_changed = true;
-			}
-
-			if (!bounds_changed)
-			{
-				SaveToReportLog(wxString::Format("  Subtitle found at (%.2f%%, %.2f%%, %.2f%%, %.2f%%) but no bounds updated\n",
-				                                  top * 100, bottom * 100, left * 100, right * 100));
-			}
-			else
-			{
-				// Live update the UI with bounds (with safety checks)
-				if (!m_bClosing && m_pVideoBox && m_pVideoBox->m_pVBox && m_pPanel && m_pPanel->m_pSHPanel && !m_pPanel->m_pSHPanel->m_bStopAutoDetect)
+				for (const auto& cnt : frame_contours)
 				{
-					// Add margin for live display
-					double live_top = std::max(0.0, top_bound - margin);
-					double live_bottom = std::min(1.0, bottom_bound + margin);
-					double live_left = std::max(0.0, left_bound - margin);
-					double live_right = std::min(1.0, right_bound + margin);
+					y_positions.push_back(cnt.y + cnt.h / 2);
+					heights.push_back(cnt.h);
+				}
+			}
 
-					// Update config values
-					g_cfg.m_top_video_image_percent_end = live_top;
-					g_cfg.m_bottom_video_image_percent_end = live_bottom;
-					g_cfg.m_left_video_image_percent_end = live_left;
-					g_cfg.m_right_video_image_percent_end = live_right;
+			if (!y_positions.empty())
+			{
+				// Calculate average y position
+				double avg_y = std::accumulate(y_positions.begin(), y_positions.end(), 0.0) / y_positions.size();
 
-					// Update separator line positions
-					m_pVideoBox->m_pVBox->m_pHSL1->m_pos = live_top;
-					m_pVideoBox->m_pVBox->m_pHSL2->m_pos = live_bottom;
-					m_pVideoBox->m_pVBox->m_pVSL1->m_pos = live_left;
-					m_pVideoBox->m_pVBox->m_pVSL2->m_pos = live_right;
+				// Calculate y threshold as 2.5x average height
+				double avg_height = std::accumulate(heights.begin(), heights.end(), 0.0) / heights.size();
+				double y_threshold = 2.5 * avg_height;
 
-					// Update separator positions
-					m_pVideoBox->UpdateSize();
-					m_pVideoBox->m_pVBox->m_pHSL1->UpdateSL();
-					m_pVideoBox->m_pVBox->m_pHSL2->UpdateSL();
-					m_pVideoBox->m_pVBox->m_pVSL1->UpdateSL();
-					m_pVideoBox->m_pVBox->m_pVSL2->UpdateSL();
-
-					// Refresh the video box to show updated boundaries
-					m_pVideoBox->m_pVBox->Refresh();
-
-					// Update settings panel
-					if (m_pPanel->m_pSSPanel)
+				// Filter contours in all recent frames based on average y position
+				for (auto& frame_contours : recent_subs_frames)
+				{
+					std::vector<ContourInfo> filtered_contours;
+					for (const auto& cnt : frame_contours)
 					{
-						m_pPanel->m_pSSPanel->RefreshData();
+						int center_y = cnt.y + cnt.h / 2;
+						if (std::abs(center_y - avg_y) < y_threshold)
+						{
+							filtered_contours.push_back(cnt);
+						}
 					}
 
-					// Process pending events to update display
-					wxYield();
+					// If less than 4 contours remain after filtering, store empty list
+					if (filtered_contours.size() < 4)
+					{
+						frame_contours.clear();
+					}
+					else
+					{
+						frame_contours = filtered_contours;
+					}
+				}
+
+				// Update limits based on the oldest frame (to keep worst-case scenario)
+				std::vector<ContourInfo> oldest_frame_contours = recent_subs_frames.front();
+				recent_subs_frames.pop_front();
+
+				for (const auto& cnt : oldest_frame_contours)
+				{
+
+					// Adjust coordinates to full frame (add search_start_y offset for y only)
+					int full_y = search_start_y + cnt.y;
+					int full_bottom = search_start_y + cnt.y + cnt.h;
+
+					if (top_limit == -1 || full_y < top_limit)
+						top_limit = full_y;
+					if (bottom_limit == -1 || full_bottom > bottom_limit)
+						bottom_limit = full_bottom;
+					if (left_limit == -1 || cnt.x < left_limit)
+						left_limit = cnt.x;
+					if (right_limit == -1 || (cnt.x + cnt.w) > right_limit)
+						right_limit = cnt.x + cnt.w;
+				}
+
+				// Update UI with current bounds
+				if (top_limit != -1 && bottom_limit != -1 && left_limit != -1 && right_limit != -1)
+				{
+					double top_pct = (double)top_limit / (double)m_h;
+					double bottom_pct = (double)bottom_limit / (double)m_h;
+					double left_pct = (double)left_limit / (double)m_w;
+					double right_pct = (double)right_limit / (double)m_w;
+
+					// Live update the UI
+					if (!m_bClosing && m_pVideoBox && m_pVideoBox->m_pVBox && m_pPanel && m_pPanel->m_pSHPanel && !m_pPanel->m_pSHPanel->m_bStopAutoDetect)
+					{
+						// Add margin for display
+						double live_top = std::max(0.0, top_pct - margin);
+						double live_bottom = std::min(1.0, bottom_pct + margin);
+						double live_left = std::max(0.0, left_pct - margin);
+						double live_right = std::min(1.0, right_pct + margin);
+
+						// Update config values
+						g_cfg.m_top_video_image_percent_end = live_top;
+						g_cfg.m_bottom_video_image_percent_end = live_bottom;
+						g_cfg.m_left_video_image_percent_end = live_left;
+						g_cfg.m_right_video_image_percent_end = live_right;
+
+						// Update separator line positions
+						m_pVideoBox->m_pVBox->m_pHSL1->m_pos = live_top;
+						m_pVideoBox->m_pVBox->m_pHSL2->m_pos = live_bottom;
+						m_pVideoBox->m_pVBox->m_pVSL1->m_pos = live_left;
+						m_pVideoBox->m_pVBox->m_pVSL2->m_pos = live_right;
+
+						// Update separator positions
+						m_pVideoBox->UpdateSize();
+						m_pVideoBox->m_pVBox->m_pHSL1->UpdateSL();
+						m_pVideoBox->m_pVBox->m_pHSL2->UpdateSL();
+						m_pVideoBox->m_pVBox->m_pVSL1->UpdateSL();
+						m_pVideoBox->m_pVBox->m_pVSL2->UpdateSL();
+
+						// Refresh the video box
+						m_pVideoBox->m_pVBox->Refresh();
+
+						// Update settings panel
+						if (m_pPanel->m_pSSPanel)
+						{
+							m_pPanel->m_pSSPanel->RefreshData();
+						}
+
+						// Process pending events to update display
+						wxYield();
+					}
 				}
 			}
 		}
 
-		if (valid_subtitles_in_frame > 0)
-		{
-			SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Frame %d: Found %d valid subtitle region(s)\n",
-			                                  i + 1, valid_subtitles_in_frame));
-		}
+		total_frames_processed++;
 	}
-
-	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Total subtitles found across all frames: %d\n", total_subtitles_found));
 
 	// Restore original position
 	m_pVideo->SetPos(original_pos);
@@ -1274,9 +1296,15 @@ void CMainFrame::AutoDetectSubtitleBounds()
 		m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
 	}
 
-	// Check if we found any text regions
-	if (bottom_bound > top_bound && right_bound > left_bound)
+	// Check if we found any subtitle regions
+	if (top_limit != -1 && bottom_limit != -1 && left_limit != -1 && right_limit != -1)
 	{
+		// Convert to percentages
+		double top_bound = (double)top_limit / (double)m_h;
+		double bottom_bound = (double)bottom_limit / (double)m_h;
+		double left_bound = (double)left_limit / (double)m_w;
+		double right_bound = (double)right_limit / (double)m_w;
+
 		// Add margin for safety
 		top_bound = std::max(0.0, top_bound - margin);
 		bottom_bound = std::min(1.0, bottom_bound + margin);
@@ -1292,11 +1320,8 @@ void CMainFrame::AutoDetectSubtitleBounds()
 		// Update the UI separating lines (with null checks and stop flag check)
 		if (!m_bClosing && m_pVideoBox && m_pVideoBox->m_pVBox && m_pPanel && m_pPanel->m_pSHPanel && !m_pPanel->m_pSHPanel->m_bStopAutoDetect)
 		{
-			// HSL1 is yellow (top line) - smaller m_pos values are at the top (m_pos=0 is screen top)
-			// HSL2 is green (bottom line) - larger m_pos values are at the bottom (m_pos=1 is screen bottom)
-			// top_bound and bottom_bound are in screen coordinates where 0=top, 1=bottom
-			m_pVideoBox->m_pVBox->m_pHSL1->m_pos = top_bound;      // Top line (yellow, smaller m_pos)
-			m_pVideoBox->m_pVBox->m_pHSL2->m_pos = bottom_bound;   // Bottom line (green, larger m_pos)
+			m_pVideoBox->m_pVBox->m_pHSL1->m_pos = top_bound;
+			m_pVideoBox->m_pVBox->m_pHSL2->m_pos = bottom_bound;
 			m_pVideoBox->m_pVBox->m_pVSL1->m_pos = left_bound;
 			m_pVideoBox->m_pVBox->m_pVSL2->m_pos = right_bound;
 
@@ -1308,9 +1333,6 @@ void CMainFrame::AutoDetectSubtitleBounds()
 			m_pVideoBox->m_pVBox->m_pHSL2->UpdateSL();
 			m_pVideoBox->m_pVBox->m_pVSL1->UpdateSL();
 			m_pVideoBox->m_pVBox->m_pVSL2->UpdateSL();
-
-			// Note: Skip Refresh() calls here to avoid queuing paint events that might
-			// execute after window destruction if user closed during detection
 		}
 
 		// Update the settings panel to reflect new values (with null check and stop flag check)
