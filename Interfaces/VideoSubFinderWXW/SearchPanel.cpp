@@ -39,9 +39,12 @@ CSearchPanel::CSearchPanel(CSSOWnd* pParent)
 	m_pMF = pParent->m_pMF;
 
 	// Initialize label strings for auto-detect controls
+	m_strAutoDetectInstructionLabel = wxT(" Step 1: Autodetection of subtitles maximal limits.\n After it's done, check and adjust manually if needed.");
 	m_strAutoDetectInfoLabel = wxT("");
 	m_strStopDetectionLabel = wxT("Stop Detection");
 	m_strResumeDetectionLabel = wxT("Resume Detection");
+	m_strDoneDetectionLabel = wxT("DONE");
+	m_strSearchInstructionLabel = wxT(" Step 2: Press \"Run Search\" for identifying video\n subtitles in the designated region.");
 
 	// Initialize flags
 	m_bStopAutoDetect = false;
@@ -61,25 +64,26 @@ void CSearchPanel::Init()
 	wxRect rcAutoDetectPanel, rcSearchPanel;
 
 	int panel_width = 374;  // Both panels same width
+	int panel_height = 150;  // Increased from 130 to 150 to prevent button cutoff
 	int gap = 10;
 
 	// Auto-detection panel on the left
 	rcAutoDetectPanel.x = 0;
 	rcAutoDetectPanel.y = 0;
 	rcAutoDetectPanel.width = panel_width;
-	rcAutoDetectPanel.height = 130;
+	rcAutoDetectPanel.height = panel_height;
 
 	// Search panel on the right, next to auto-detection panel
 	rcSearchPanel.x = rcAutoDetectPanel.GetRight() + gap;
 	rcSearchPanel.y = 0;
 	rcSearchPanel.width = panel_width;
-	rcSearchPanel.height = 130;
+	rcSearchPanel.height = panel_height;
 
 	// Main panel P1 contains both sub-panels side-by-side
 	rcP1.x = 10;
 	rcP1.y = 10;
 	rcP1.width = rcSearchPanel.GetRight() + 10;
-	rcP1.height = 130 + 20;
+	rcP1.height = panel_height + 20;
 
 	SaveToReportLog("CSearchPanel::Init(): init m_pP1...\n");
 	m_pP1 = new wxPanel( this, wxID_ANY, rcP1.GetPosition(), rcP1.GetSize() );
@@ -98,8 +102,14 @@ void CSearchPanel::Init()
 	SaveToReportLog("CSearchPanel::Init(): m_pSearchPanel created.\n");
 
 	// === Auto-detection controls (in m_pAutoDetectPanel) ===
+	wxRect rcInstruction;
+	rcInstruction.x = 20;
+	rcInstruction.y = 10;
+	rcInstruction.width = 334;  // Match search panel width
+	rcInstruction.height = 40;  // Height for 2 lines of text
+
 	rcProgress.x = 20;
-	rcProgress.y = 10;
+	rcProgress.y = rcInstruction.GetBottom() + 5;
 	rcProgress.width = 334;  // Match search panel width
 	rcProgress.height = 20;
 
@@ -115,8 +125,14 @@ void CSearchPanel::Init()
 
 	// === Search controls (in m_pSearchPanel) ===
 	// Note: m_pSearchPanel has its own coordinate system starting at (0,0)
+	wxRect rcSearchInstruction;
+	rcSearchInstruction.x = 20;
+	rcSearchInstruction.y = 10;
+	rcSearchInstruction.width = 334;  // Match auto-detect panel width
+	rcSearchInstruction.height = 40;  // Height for 2 lines of text
+
 	rcBT1.x = 20;
-	rcBT1.y = 10;
+	rcBT1.y = rcSearchInstruction.GetBottom() + 10;
 	rcBT1.width = 90;
 	rcBT1.height = 20;
 
@@ -146,6 +162,14 @@ void CSearchPanel::Init()
 	rcRun.y = rcClear.y;
 
 	// === Create search controls in m_pSearchPanel ===
+	SaveToReportLog("CSearchPanel::Init(): init m_plblSearchInstruction...\n");
+	m_plblSearchInstruction = new wxStaticText(m_pSearchPanel, wxID_ANY, m_strSearchInstructionLabel,
+		rcSearchInstruction.GetPosition(), rcSearchInstruction.GetSize(), wxALIGN_LEFT);
+
+	wxColour *search_instruction_bg_colour = new wxColour(255, 100, 255);
+	m_plblSearchInstruction->SetBackgroundColour(*search_instruction_bg_colour);
+	m_plblSearchInstruction->Wrap(rcSearchInstruction.width - 10);  // Wrap text to fit width
+
 	SaveToReportLog("CSearchPanel::Init(): init m_plblBT1...\n");
 	m_plblBT1 = new CStaticText(m_pSearchPanel, g_cfg.m_label_begin_time, wxID_ANY);
 	m_plblBT1->SetSize(rcBT1);
@@ -185,6 +209,14 @@ void CSearchPanel::Init()
 	m_pRun->SetMinSize(run_min_size);
 
 	// === Create auto-detection controls in m_pAutoDetectPanel ===
+	SaveToReportLog("CSearchPanel::Init(): init m_plblAutoDetectInstruction...\n");
+	m_plblAutoDetectInstruction = new wxStaticText(m_pAutoDetectPanel, wxID_ANY, m_strAutoDetectInstructionLabel,
+		rcInstruction.GetPosition(), rcInstruction.GetSize(), wxALIGN_LEFT);
+
+	wxColour *instruction_bg_colour = new wxColour(255, 100, 255);
+	m_plblAutoDetectInstruction->SetBackgroundColour(*instruction_bg_colour);
+	m_plblAutoDetectInstruction->Wrap(rcInstruction.width - 10);  // Wrap text to fit width
+
 	SaveToReportLog("CSearchPanel::Init(): init m_pAutoDetectProgress...\n");
 	m_pAutoDetectProgress = new wxGauge(m_pAutoDetectPanel, wxID_ANY, 100, rcProgress.GetPosition(), rcProgress.GetSize());
 	m_pAutoDetectProgress->SetValue(0);
@@ -227,6 +259,9 @@ void CSearchPanel::Init()
     m_plblBTA2->SetTextColour(g_cfg.m_main_text_colour);
     m_pClear->SetTextColour(g_cfg.m_main_text_colour);
     m_pRun->SetTextColour(g_cfg.m_main_text_colour);
+	wxColour instruction_text_colour(0, 0, 0);  // Black text for instruction labels
+	m_plblAutoDetectInstruction->SetForegroundColour(instruction_text_colour);
+	m_plblSearchInstruction->SetForegroundColour(instruction_text_colour);
 	m_pBtnStopAutoDetect->SetTextColour(g_cfg.m_main_text_colour);
 
 	SaveToReportLog("CSearchPanel::Init(): fonts and colors set.\n");
@@ -512,7 +547,7 @@ void CSearchPanel::ShowAutoDetectProgress(bool show)
 		SaveToReportLog("ShowAutoDetectProgress: Disabling stop button, keeping progress visible\n");
 		// Keep the progress bar and text visible, just disable the stop button
 		// Reset button label and pause state when detection finishes
-		m_pBtnStopAutoDetect->SetLabel(m_strStopDetectionLabel);
+		m_pBtnStopAutoDetect->SetLabel(m_strDoneDetectionLabel);
 		m_pBtnStopAutoDetect->Enable(false);
 		m_bPausedAutoDetect = false;  // Reset pause state when done
 		m_pAutoDetectPanel->Refresh();

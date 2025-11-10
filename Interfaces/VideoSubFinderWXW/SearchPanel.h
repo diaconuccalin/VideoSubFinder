@@ -56,11 +56,15 @@ public:
 	CTextCtrl  *m_plblBTA2;
 
 	// Auto-detection progress controls
-	wxGauge     *m_pAutoDetectProgress;
-	CStaticText *m_plblAutoDetectInfo;
-	CButton     *m_pBtnStopAutoDetect;
-	bool        m_bStopAutoDetect;
-	bool        m_bPausedAutoDetect;
+	wxStaticText *m_plblAutoDetectInstruction;
+	wxGauge      *m_pAutoDetectProgress;
+	CStaticText  *m_plblAutoDetectInfo;
+	CButton      *m_pBtnStopAutoDetect;
+	bool         m_bStopAutoDetect;
+	bool         m_bPausedAutoDetect;
+
+	// Search instruction control
+	wxStaticText *m_plblSearchInstruction;
 
 	CSSOWnd		*m_pParent;
 
@@ -86,9 +90,12 @@ public:
 
 private:
 	// Label strings for auto-detect controls (must persist for CButton/CStaticText lifetime)
+	wxString m_strAutoDetectInstructionLabel;
 	wxString m_strAutoDetectInfoLabel;
 	wxString m_strStopDetectionLabel;
 	wxString m_strResumeDetectionLabel;
+	wxString m_strDoneDetectionLabel;
+	wxString m_strSearchInstructionLabel;
 
    DECLARE_EVENT_TABLE()
 };
