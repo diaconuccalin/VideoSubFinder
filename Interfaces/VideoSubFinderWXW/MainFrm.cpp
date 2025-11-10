@@ -984,14 +984,48 @@ void CMainFrame::AutoDetectSubtitleBounds()
 		const double lower_half_start = 0.5;  // Only search bottom 50% of frame for subtitles
 
 		s64 original_pos = m_pVideo->GetPos();  // Save current position
-		s64 start_pos = original_pos;  // Start detection from current position
 
-		// Calculate number of samples based on remaining video duration from current position
-		s64 remaining_duration_ms = m_EndTime - start_pos;
-		int num_samples = (int)(remaining_duration_ms / sample_interval_ms) + 1;
+		// Calculate video duration
+		s64 video_duration_ms = m_EndTime;
+		s64 quarter_duration_ms = video_duration_ms / 4;
 
-	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Will sample %d frames (every %.1f seconds) from position %.1f to %.1f seconds\n",
-	                                  num_samples, sample_interval_ms / 1000.0, start_pos / 1000.0, m_EndTime / 1000.0));
+		// Define three 1-minute sampling intervals after each of the first three quarters
+		const s64 interval_duration_ms = 60000;  // 1 minute
+		std::vector<std::pair<s64, s64>> sampling_intervals;
+
+		// Interval 1: After first quarter (25% mark)
+		s64 interval1_start = quarter_duration_ms;
+		s64 interval1_end = std::min(interval1_start + interval_duration_ms, m_EndTime);
+		sampling_intervals.push_back({interval1_start, interval1_end});
+
+		// Interval 2: After second quarter (50% mark)
+		s64 interval2_start = 2 * quarter_duration_ms;
+		s64 interval2_end = std::min(interval2_start + interval_duration_ms, m_EndTime);
+		sampling_intervals.push_back({interval2_start, interval2_end});
+
+		// Interval 3: After third quarter (75% mark)
+		s64 interval3_start = 3 * quarter_duration_ms;
+		s64 interval3_end = std::min(interval3_start + interval_duration_ms, m_EndTime);
+		sampling_intervals.push_back({interval3_start, interval3_end});
+
+		// Calculate total number of samples across all intervals
+		int num_samples = 0;
+		for (const auto& interval : sampling_intervals)
+		{
+			s64 interval_duration = interval.second - interval.first;
+			num_samples += (int)(interval_duration / sample_interval_ms) + 1;
+		}
+
+	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Video duration: %.1f seconds\n", video_duration_ms / 1000.0));
+	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Sampling 3 intervals of 1 minute each:\n"));
+	SaveToReportLog(wxString::Format("  Interval 1: %.1f - %.1f seconds (after 25%% mark)\n",
+		interval1_start / 1000.0, interval1_end / 1000.0));
+	SaveToReportLog(wxString::Format("  Interval 2: %.1f - %.1f seconds (after 50%% mark)\n",
+		interval2_start / 1000.0, interval2_end / 1000.0));
+	SaveToReportLog(wxString::Format("  Interval 3: %.1f - %.1f seconds (after 75%% mark)\n",
+		interval3_start / 1000.0, interval3_end / 1000.0));
+	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Will sample %d frames total (every %.1f seconds)\n",
+		num_samples, sample_interval_ms / 1000.0));
 
 	// Calculate buffer size
 	size_t buffer_size = (size_t)m_w * (size_t)m_h * 3;
@@ -1051,62 +1085,78 @@ void CMainFrame::AutoDetectSubtitleBounds()
 	int left_limit = -1;
 	int right_limit = -1;
 
-	// Sample frames at regular intervals
+	// Sample frames at regular intervals across the three intervals
 	int total_frames_processed = 0;
-	for (int i = 0; i < num_samples; i++)
-	{
-		// Check if window is closing or user clicked stop button
-		if (m_bClosing || !m_pPanel || !m_pPanel->m_pSHPanel || m_pPanel->m_pSHPanel->m_bStopAutoDetect || !m_pVideo)
-		{
-			SaveToReportLog("AutoDetectSubtitleBounds: Stopped by user request or application closing\n");
-			if (m_pPanel && m_pPanel->m_pSHPanel)
-			{
-				m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
-			}
-			m_bAutoDetectionRunning = false;
-			SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (user stop)\n");
-			return;
-		}
+	int current_sample = 0;
 
-		// Check if paused - wait until resumed or stopped
-		while (m_pPanel && m_pPanel->m_pSHPanel && m_pPanel->m_pSHPanel->m_bPausedAutoDetect)
+	for (const auto& interval : sampling_intervals)
+	{
+		s64 interval_start = interval.first;
+		s64 interval_end = interval.second;
+		s64 interval_duration = interval_end - interval_start;
+		int interval_samples = (int)(interval_duration / sample_interval_ms) + 1;
+
+		SaveToReportLog(wxString::Format("\nProcessing interval: %.1f - %.1f seconds (%d samples)\n",
+			interval_start / 1000.0, interval_end / 1000.0, interval_samples));
+
+		for (int i = 0; i < interval_samples; i++)
 		{
-			// Check if user wants to stop while paused
-			if (m_bClosing || m_pPanel->m_pSHPanel->m_bStopAutoDetect)
+			// Check if window is closing or user clicked stop button
+			if (m_bClosing || !m_pPanel || !m_pPanel->m_pSHPanel || m_pPanel->m_pSHPanel->m_bStopAutoDetect || !m_pVideo)
 			{
-				SaveToReportLog("AutoDetectSubtitleBounds: Stopped while paused\n");
-				m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+				SaveToReportLog("AutoDetectSubtitleBounds: Stopped by user request or application closing\n");
+				if (m_pPanel && m_pPanel->m_pSHPanel)
+				{
+					m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+				}
 				m_bAutoDetectionRunning = false;
-				SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (stopped while paused)\n");
+				SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (user stop)\n");
 				return;
 			}
 
-			// Sleep briefly and process events to keep UI responsive
-			wxMilliSleep(100);
-			wxYield();
-		}
+			// Check if paused - wait until resumed or stopped
+			while (m_pPanel && m_pPanel->m_pSHPanel && m_pPanel->m_pSHPanel->m_bPausedAutoDetect)
+			{
+				// Check if user wants to stop while paused
+				if (m_bClosing || m_pPanel->m_pSHPanel->m_bStopAutoDetect)
+				{
+					SaveToReportLog("AutoDetectSubtitleBounds: Stopped while paused\n");
+					m_pPanel->m_pSHPanel->ShowAutoDetectProgress(false);
+					m_bAutoDetectionRunning = false;
+					SaveToReportLog("AutoDetectSubtitleBounds: Auto-detection flag set to FALSE (stopped while paused)\n");
+					return;
+				}
 
-		s64 sample_pos = start_pos + (s64)(i * sample_interval_ms);
+				// Sleep briefly and process events to keep UI responsive
+				wxMilliSleep(100);
+				wxYield();
+			}
 
-		// Skip if we've gone past the end time
-		if (sample_pos > m_EndTime)
-		{
-			break;
-		}
+			s64 sample_pos = interval_start + (s64)(i * sample_interval_ms);
 
-		// Update progress bar (with null check and stop flag check)
-		if (!m_bClosing && m_pPanel && m_pPanel->m_pSHPanel && !m_pPanel->m_pSHPanel->m_bStopAutoDetect)
-		{
-			m_pPanel->m_pSHPanel->UpdateAutoDetectProgress(i + 1, num_samples);
-		}
+			// Skip if we've gone past the interval end
+			if (sample_pos > interval_end)
+			{
+				break;
+			}
 
-		m_pVideo->SetPos(sample_pos);
-		m_pVideo->SetImageGeted(false);
-		m_pVideo->RunWithTimeout(100);
-		m_pVideo->Pause();
+			current_sample++;
 
-		// Get the BGR image (reuse the same buffer)
-		m_pVideo->GetBGRImage(ImBGR, 0, m_w - 1, 0, m_h - 1);
+			// Update progress bar (with null check and stop flag check)
+			if (!m_bClosing && m_pPanel && m_pPanel->m_pSHPanel && !m_pPanel->m_pSHPanel->m_bStopAutoDetect)
+			{
+				m_pPanel->m_pSHPanel->UpdateAutoDetectProgress(current_sample, num_samples);
+			}
+
+			SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Processing frame %d/%d at position %lld ms\n", current_sample, num_samples, sample_pos));
+
+			m_pVideo->SetPos(sample_pos);
+			m_pVideo->SetImageGeted(false);
+			m_pVideo->RunWithTimeout(100);
+			m_pVideo->Pause();
+
+			// Get the BGR image (reuse the same buffer)
+			m_pVideo->GetBGRImage(ImBGR, 0, m_w - 1, 0, m_h - 1);
 
 		// Convert to OpenCV Mat for processing (wrapper around existing data, no allocation)
 		cv::Mat frame(m_h, m_w, CV_8UC3, ImBGR.m_pData);
@@ -1282,7 +1332,10 @@ void CMainFrame::AutoDetectSubtitleBounds()
 		}
 
 		total_frames_processed++;
-	}
+		}  // End of inner frame sampling loop
+	}  // End of interval loop
+
+	SaveToReportLog(wxString::Format("AutoDetectSubtitleBounds: Completed processing all intervals. Total frames processed: %d\n", total_frames_processed));
 
 	// Restore original position
 	m_pVideo->SetPos(original_pos);
