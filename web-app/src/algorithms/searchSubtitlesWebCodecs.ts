@@ -270,6 +270,12 @@ export async function searchSubtitlesWebCodecs(
     // Start processing frames
     video.requestVideoFrameCallback(processFrame);
 
+    // Set high playback rate for faster processing
+    // The browser will still call requestVideoFrameCallback for each rendered frame
+    // Higher rates = faster processing without dropping frames from our callback
+    video.playbackRate = 4.0; // 4x speed
+    console.log(`Starting video playback at ${video.playbackRate}x speed`);
+
     // Play the video (muted)
     await video.play();
 
