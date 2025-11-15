@@ -24,7 +24,6 @@ export function Step3_SearchSubtitles() {
   const { state, dispatch, completeStep, goToStep } = useWorkflow();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState<SearchProgress | null>(null);
@@ -52,71 +51,6 @@ export function Step3_SearchSubtitles() {
       setResults(state.subtitleFrames);
     }
   }, [state.subtitleFrames]);
-
-  // Set up video canvas drawing
-  useEffect(() => {
-    if (state.videoUrl && videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d')!;
-
-      const updateCanvas = () => {
-        if (video.readyState >= 2) {
-          // Draw current video frame
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-          // Draw detected region overlay
-          if (detectedRegion) {
-            const scaleX = canvas.width / video.videoWidth;
-            const scaleY = canvas.height / video.videoHeight;
-
-            const scaledRegion = {
-              xmin: detectedRegion.xmin * scaleX,
-              ymin: detectedRegion.ymin * scaleY,
-              xmax: detectedRegion.xmax * scaleX,
-              ymax: detectedRegion.ymax * scaleY,
-            };
-
-            // Semi-transparent green overlay
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
-            ctx.fillRect(
-              scaledRegion.xmin,
-              scaledRegion.ymin,
-              scaledRegion.xmax - scaledRegion.xmin,
-              scaledRegion.ymax - scaledRegion.ymin
-            );
-
-            // Green border
-            ctx.strokeStyle = '#00FF00';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(
-              scaledRegion.xmin,
-              scaledRegion.ymin,
-              scaledRegion.xmax - scaledRegion.xmin,
-              scaledRegion.ymax - scaledRegion.ymin
-            );
-          }
-        }
-      };
-
-      // Update canvas when video time changes
-      const onTimeUpdate = () => updateCanvas();
-      const onSeeked = () => updateCanvas();
-      const onLoadedData = () => updateCanvas();
-
-      video.addEventListener('timeupdate', onTimeUpdate);
-      video.addEventListener('seeked', onSeeked);
-      video.addEventListener('loadeddata', onLoadedData);
-
-      updateCanvas();
-
-      return () => {
-        video.removeEventListener('timeupdate', onTimeUpdate);
-        video.removeEventListener('seeked', onSeeked);
-        video.removeEventListener('loadeddata', onLoadedData);
-      };
-    }
-  }, [state.videoUrl, detectedRegion]);
 
   // Handle search button click
   const handleRunSearch = async () => {
@@ -240,29 +174,13 @@ export function Step3_SearchSubtitles() {
           </p>
         </div>
 
-      {/* Video Preview */}
-      <div className="mb-6">
-        <div className="relative bg-black rounded-lg overflow-hidden">
-          <video
-            ref={videoRef}
-            src={state.videoUrl}
-            className="hidden"
-            crossOrigin="anonymous"
-          />
-          <canvas
-            ref={canvasRef}
-            className="block max-w-full max-h-96 mx-auto"
-            width={state.videoMetadata?.width || 640}
-            height={state.videoMetadata?.height || 480}
-          />
-          {isSearching && (
-            <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center">
-              <div className="animate-pulse mr-2">●</div>
-              Searching...
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Hidden video element for frame extraction */}
+      <video
+        ref={videoRef}
+        src={state.videoUrl}
+        className="hidden"
+        crossOrigin="anonymous"
+      />
 
       {/* Search Controls */}
       {!isSearching && results.length === 0 && (
