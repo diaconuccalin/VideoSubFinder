@@ -26,12 +26,13 @@ export function Step2_AutoDetect() {
   const [detectedRegion, setDetectedRegionState] = useState<BoundingBox | null>(null);
   const [detectProgress, setDetectProgress] = useState(0);
   const [detectTotal, setDetectTotal] = useState(0);
-  const [visualization, setVisualization] = useState<ImageData | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [detectionStats, setDetectionStats] = useState<{
     framesProcessed: number;
     contoursFound: number;
   } | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
 
   // Detection parameters (can be adjusted by user)
   const [params, setParams] = useState<AutoDetectParams>(DEFAULT_AUTO_DETECT_PARAMS);
@@ -42,6 +43,97 @@ export function Step2_AutoDetect() {
       runAutoDetection();
     }
   }, [state.videoUrl]);
+
+  // Set up video element and canvas drawing
+  useEffect(() => {
+    if (state.videoUrl && videoRef.current) {
+      const video = videoRef.current;
+
+      const updateCanvas = () => {
+        if (canvasRef.current && video.readyState >= 2) {
+          const canvas = canvasRef.current;
+          const ctx = canvas.getContext('2d')!;
+
+          // Draw current video frame
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          // Draw overlay if region is detected
+          if (detectedRegion) {
+            // Semi-transparent red overlay
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+            ctx.fillRect(
+              detectedRegion.xmin,
+              detectedRegion.ymin,
+              detectedRegion.xmax - detectedRegion.xmin,
+              detectedRegion.ymax - detectedRegion.ymin
+            );
+
+            // Red border (4px thick)
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(
+              detectedRegion.xmin,
+              detectedRegion.ymin,
+              detectedRegion.xmax - detectedRegion.xmin,
+              detectedRegion.ymax - detectedRegion.ymin
+            );
+
+            // Corner markers
+            const markerSize = 20;
+            ctx.fillStyle = '#FF0000';
+
+            // Top-left
+            ctx.fillRect(detectedRegion.xmin - 2, detectedRegion.ymin - 2, markerSize, 4);
+            ctx.fillRect(detectedRegion.xmin - 2, detectedRegion.ymin - 2, 4, markerSize);
+
+            // Top-right
+            ctx.fillRect(detectedRegion.xmax - markerSize + 2, detectedRegion.ymin - 2, markerSize, 4);
+            ctx.fillRect(detectedRegion.xmax - 2, detectedRegion.ymin - 2, 4, markerSize);
+
+            // Bottom-left
+            ctx.fillRect(detectedRegion.xmin - 2, detectedRegion.ymax - 2, markerSize, 4);
+            ctx.fillRect(detectedRegion.xmin - 2, detectedRegion.ymax - markerSize + 2, 4, markerSize);
+
+            // Bottom-right
+            ctx.fillRect(detectedRegion.xmax - markerSize + 2, detectedRegion.ymax - 2, markerSize, 4);
+            ctx.fillRect(detectedRegion.xmax - 2, detectedRegion.ymax - markerSize + 2, 4, markerSize);
+          }
+        }
+      };
+
+      // Update canvas on every frame
+      const onTimeUpdate = () => {
+        setCurrentTime(video.currentTime);
+        updateCanvas();
+      };
+
+      const onLoadedMetadata = () => {
+        if (canvasRef.current) {
+          canvasRef.current.width = video.videoWidth;
+          canvasRef.current.height = video.videoHeight;
+        }
+        updateCanvas();
+      };
+
+      const onSeeked = () => {
+        updateCanvas();
+      };
+
+      video.addEventListener('timeupdate', onTimeUpdate);
+      video.addEventListener('loadedmetadata', onLoadedMetadata);
+      video.addEventListener('seeked', onSeeked);
+
+      if (video.readyState >= 2) {
+        onLoadedMetadata();
+      }
+
+      return () => {
+        video.removeEventListener('timeupdate', onTimeUpdate);
+        video.removeEventListener('loadedmetadata', onLoadedMetadata);
+        video.removeEventListener('seeked', onSeeked);
+      };
+    }
+  }, [state.videoUrl, detectedRegion]);
 
   const runAutoDetection = async () => {
     if (!state.videoUrl || !state.videoMetadata) {
@@ -64,8 +156,6 @@ export function Step2_AutoDetect() {
         video.addEventListener('error', () => reject(new Error('Failed to load video')));
       });
 
-      videoRef.current = video;
-
       // Run AutoDetectSubtitleBounds algorithm
       const result = await autoDetectSubtitleBounds(
         video,
@@ -84,9 +174,6 @@ export function Step2_AutoDetect() {
 
       if (result.bounds) {
         setDetectedRegionState(result.bounds);
-
-        // Create visualization
-        await createVisualization(video, result.bounds);
       } else {
         alert('No subtitle regions detected. The video may not contain hardcoded subtitles, or they may be in an unusual position.');
       }
@@ -98,91 +185,27 @@ export function Step2_AutoDetect() {
     }
   };
 
-  const createVisualization = async (video: HTMLVideoElement, bounds: BoundingBox) => {
-    // Seek to 10% of video for visualization frame
-    const vizTime = state.videoMetadata!.duration * 0.1;
-    await seekToTime(video, vizTime);
-
-    // Wait a bit to ensure frame is loaded
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Draw visualization on canvas directly using canvas 2D API (faster than ImageData manipulation)
-    if (canvasRef.current) {
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      const ctx = canvas.getContext('2d')!;
-
-      // Draw the video frame
-      ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-
-      // Draw semi-transparent red overlay on detected region
-      ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-      ctx.fillRect(
-        bounds.xmin,
-        bounds.ymin,
-        bounds.xmax - bounds.xmin,
-        bounds.ymax - bounds.ymin
-      );
-
-      // Draw red border (4px thick for visibility)
-      ctx.strokeStyle = '#FF0000';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(
-        bounds.xmin,
-        bounds.ymin,
-        bounds.xmax - bounds.xmin,
-        bounds.ymax - bounds.ymin
-      );
-
-      // Also draw corner markers for better visibility
-      const markerSize = 20;
-      ctx.fillStyle = '#FF0000';
-
-      // Top-left corner
-      ctx.fillRect(bounds.xmin - 2, bounds.ymin - 2, markerSize, 4);
-      ctx.fillRect(bounds.xmin - 2, bounds.ymin - 2, 4, markerSize);
-
-      // Top-right corner
-      ctx.fillRect(bounds.xmax - markerSize + 2, bounds.ymin - 2, markerSize, 4);
-      ctx.fillRect(bounds.xmax - 2, bounds.ymin - 2, 4, markerSize);
-
-      // Bottom-left corner
-      ctx.fillRect(bounds.xmin - 2, bounds.ymax - 2, markerSize, 4);
-      ctx.fillRect(bounds.xmin - 2, bounds.ymax - markerSize + 2, 4, markerSize);
-
-      // Bottom-right corner
-      ctx.fillRect(bounds.xmax - markerSize + 2, bounds.ymax - 2, markerSize, 4);
-      ctx.fillRect(bounds.xmax - 2, bounds.ymax - markerSize + 2, 4, markerSize);
-
-      setVisualization(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  const handlePlayPause = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
     }
   };
 
-  const seekToTime = (video: HTMLVideoElement, time: number): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      const onSeeked = () => {
-        video.removeEventListener('seeked', onSeeked);
-        video.removeEventListener('error', onError);
-        resolve();
-      };
-
-      const onError = () => {
-        video.removeEventListener('seeked', onSeeked);
-        video.removeEventListener('error', onError);
-        reject(new Error('Failed to seek'));
-      };
-
-      video.addEventListener('seeked', onSeeked);
-      video.addEventListener('error', onError);
-      video.currentTime = time;
-    });
+  const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (videoRef.current) {
+      const time = parseFloat(e.target.value);
+      videoRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
   };
 
   const handleRedetect = () => {
     setDetectedRegionState(null);
-    setVisualization(null);
     setDetectionStats(null);
     runAutoDetection();
   };
@@ -200,6 +223,12 @@ export function Step2_AutoDetect() {
     value: AutoDetectParams[K]
   ) => {
     setParams((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const formatBounds = (bounds: BoundingBox, width: number, height: number) => {
@@ -223,7 +252,7 @@ export function Step2_AutoDetect() {
           This uses OpenCV.js with the exact algorithm from the C++ codebase (AutoDetectSubtitleBounds).
         </p>
 
-        {/* Visualization Canvas */}
+        {/* Video Preview with Overlay */}
         <div className="mb-6">
           <div className="border-2 border-submarine-sky rounded-lg bg-gray-900">
             {isDetecting ? (
@@ -246,19 +275,79 @@ export function Step2_AutoDetect() {
                   </div>
                 )}
               </div>
-            ) : visualization ? (
-              <div className="overflow-auto max-h-[600px]">
-                <canvas ref={canvasRef} className="block" />
+            ) : state.videoUrl ? (
+              <div>
+                {/* Video and Canvas Container */}
+                <div className="relative overflow-auto max-h-[600px]">
+                  <video
+                    ref={videoRef}
+                    src={state.videoUrl}
+                    className="hidden"
+                    crossOrigin="anonymous"
+                  />
+                  <canvas ref={canvasRef} className="block w-full" />
+                </div>
+
+                {/* Video Controls */}
+                <div className="bg-gray-800 p-4 space-y-3">
+                  {/* Timeline Slider */}
+                  <div className="flex items-center space-x-3">
+                    <span className="text-white text-sm font-mono min-w-[4rem]">
+                      {formatTime(currentTime)}
+                    </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max={state.videoMetadata?.duration || 0}
+                      step="0.1"
+                      value={currentTime}
+                      onChange={handleTimelineChange}
+                      className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                      style={{
+                        background: `linear-gradient(to right, #3B9DD7 0%, #3B9DD7 ${(currentTime / (state.videoMetadata?.duration || 1)) * 100}%, #374151 ${(currentTime / (state.videoMetadata?.duration || 1)) * 100}%, #374151 100%)`,
+                      }}
+                    />
+                    <span className="text-white text-sm font-mono min-w-[4rem] text-right">
+                      {formatTime(state.videoMetadata?.duration || 0)}
+                    </span>
+                  </div>
+
+                  {/* Play/Pause Button */}
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={handlePlayPause}
+                      className="bg-submarine-ocean hover:bg-submarine-deep-blue text-white rounded-full p-3 transition-colors"
+                    >
+                      {isPlaying ? (
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      ) : (
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="py-32 text-center">
-                <p className="text-gray-400">No visualization available</p>
+                <p className="text-gray-400">No video loaded</p>
               </div>
             )}
           </div>
-          {visualization && (
+          {detectedRegion && (
             <p className="text-sm text-gray-600 mt-2">
-              📌 Scroll to view the entire frame. The detected subtitle region is highlighted in red.
+              🎯 The detected subtitle region is highlighted in red. Use the timeline to scrub through the video.
             </p>
           )}
         </div>
