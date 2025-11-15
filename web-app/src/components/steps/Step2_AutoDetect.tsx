@@ -336,14 +336,14 @@ export function Step2_AutoDetect() {
             ) : state.videoUrl ? (
               <div>
                 {/* Video and Canvas Container */}
-                <div className="relative overflow-hidden max-h-[500px] flex items-center justify-center">
+                <div className="relative overflow-hidden flex items-center justify-center" style={{ maxHeight: '500px' }}>
                   <video
                     ref={videoRef}
                     src={state.videoUrl}
                     className="hidden"
                     crossOrigin="anonymous"
                   />
-                  <canvas ref={canvasRef} className="block w-full" />
+                  <canvas ref={canvasRef} className="block max-w-full max-h-full" />
                 </div>
 
                 {/* Video Controls */}
