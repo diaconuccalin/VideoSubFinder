@@ -138,10 +138,6 @@ export function Step3_SearchSubtitles() {
         searchParams,
         (progressData) => {
           setProgress(progressData);
-          // Update video preview to current processing position
-          if (videoRef.current) {
-            videoRef.current.currentTime = progressData.currentTime;
-          }
         },
         () => shouldStopRef.current
       );
