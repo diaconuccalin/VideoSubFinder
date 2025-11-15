@@ -28,7 +28,7 @@ export function WorkflowStepper() {
   const currentIndex = STEPS.findIndex(step => step.id === state.currentStep);
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4">
+    <div className="bg-gradient-to-r from-submarine-sky/20 to-submarine-ocean/20 border-b-2 border-submarine-ocean px-6 py-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between">
           {STEPS.map((step, index) => {
@@ -43,11 +43,11 @@ export function WorkflowStepper() {
                   onClick={() => isAccessible && goToStep(step.id)}
                   disabled={!isAccessible}
                   className={`
-                    flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all
-                    ${isCurrent ? 'border-primary-600 bg-primary-600 text-white' : ''}
-                    ${isCompleted && !isCurrent ? 'border-green-600 bg-green-600 text-white' : ''}
-                    ${!isCurrent && !isCompleted ? 'border-gray-300 bg-white text-gray-500' : ''}
-                    ${isAccessible ? 'cursor-pointer hover:scale-110' : 'cursor-not-allowed opacity-50'}
+                    flex items-center justify-center w-10 h-10 rounded-full border-3 transition-all font-bold
+                    ${isCurrent ? 'border-submarine-ocean bg-submarine-ocean text-white shadow-md scale-110' : ''}
+                    ${isCompleted && !isCurrent ? 'border-submarine-coral bg-submarine-coral text-white' : ''}
+                    ${!isCurrent && !isCompleted ? 'border-gray-400 bg-white text-gray-600' : ''}
+                    ${isAccessible ? 'cursor-pointer hover:scale-110 hover:shadow-lg' : 'cursor-not-allowed opacity-50'}
                   `}
                 >
                   {isCompleted && !isCurrent ? (
@@ -59,13 +59,13 @@ export function WorkflowStepper() {
                       />
                     </svg>
                   ) : (
-                    <span className="text-sm font-semibold">{index + 1}</span>
+                    <span className="text-sm font-bold">{index + 1}</span>
                   )}
                 </button>
 
                 {/* Step Label */}
                 <div className="ml-2 hidden md:block">
-                  <div className={`text-sm font-medium ${isCurrent ? 'text-primary-600' : 'text-gray-700'}`}>
+                  <div className={`text-sm font-semibold ${isCurrent ? 'text-submarine-ocean' : 'text-submarine-deep-blue'}`}>
                     {step.label}
                   </div>
                 </div>
@@ -74,8 +74,8 @@ export function WorkflowStepper() {
                 {index < STEPS.length - 1 && (
                   <div
                     className={`
-                      h-0.5 w-8 mx-2 transition-all
-                      ${index < currentIndex ? 'bg-green-600' : 'bg-gray-300'}
+                      h-1 w-8 mx-2 transition-all rounded-full
+                      ${index < currentIndex ? 'bg-submarine-coral' : 'bg-gray-300'}
                     `}
                   />
                 )}
