@@ -107,11 +107,16 @@ async function demuxMP4File(
       });
 
       // Start extracting samples
-      mp4boxFile.setExtractionOptions(videoTrack.id, null, { nbSamples: 1000 });
+      // Note: Don't set extraction options with nbSamples parameter, use defaults
+      mp4boxFile.setExtractionOptions(videoTrack.id);
       mp4boxFile.start();
+
+      // Seek to beginning to trigger sample extraction
+      mp4boxFile.seek(0, true);
     };
 
     mp4boxFile.onSamples = (_trackId: number, _ref: any, samples: any[]) => {
+      console.log(`onSamples called with ${samples.length} samples, total so far: ${samplesProcessed}`);
       for (const sample of samples) {
         const chunk = new EncodedVideoChunk({
           type: sample.is_sync ? 'key' : 'delta',
