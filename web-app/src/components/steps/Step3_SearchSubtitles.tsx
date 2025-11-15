@@ -146,6 +146,14 @@ export function Step3_SearchSubtitles() {
     setIsSearching(false);
   };
 
+  // Handle reset
+  const handleReset = () => {
+    setResults([]);
+    setProgress(null);
+    dispatch({ type: 'SET_SUBTITLE_FRAMES', payload: [] });
+    dispatch({ type: 'UPDATE_SEARCH_PROGRESS', payload: 0 });
+  };
+
   // Handle continue to next step
   const handleContinue = () => {
     completeStep('search-subtitles');
@@ -497,13 +505,21 @@ export function Step3_SearchSubtitles() {
               </div>
             </div>
 
-            {/* Continue Button */}
-            <button
-              onClick={handleContinue}
-              className="w-full mt-4 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-            >
-              Continue to Clear Images →
-            </button>
+            {/* Action Buttons */}
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={handleReset}
+                className="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+              >
+                🔄 Reset Search
+              </button>
+              <button
+                onClick={handleContinue}
+                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+              >
+                Continue to Clear Images →
+              </button>
+            </div>
           </div>
         </div>
       )}
