@@ -350,6 +350,12 @@ export function Step2_AutoDetect() {
           break;
       }
 
+      // Round to nearest pixel
+      newRegion.xmin = Math.round(newRegion.xmin);
+      newRegion.ymin = Math.round(newRegion.ymin);
+      newRegion.xmax = Math.round(newRegion.xmax);
+      newRegion.ymax = Math.round(newRegion.ymax);
+
       // Clamp to video bounds and ensure minimum size
       const minSize = 20;
       newRegion.xmin = Math.max(0, Math.min(newRegion.xmin, videoRef.current.videoWidth - minSize));

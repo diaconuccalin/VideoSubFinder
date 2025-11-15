@@ -1,5 +1,5 @@
 /**
- * Workflow Stepper Component - Shows 8-step progress
+ * Workflow Stepper Component - Shows 7-step progress
  */
 
 import { useWorkflow } from '../../context/WorkflowContext';
@@ -13,13 +13,12 @@ interface Step {
 
 const STEPS: Step[] = [
   { id: 'video-select', label: 'Select Video', shortLabel: '1. Video' },
-  { id: 'auto-detect', label: 'Auto-Detect Position', shortLabel: '2. Detect' },
-  { id: 'manual-adjust', label: 'Adjust Region', shortLabel: '3. Adjust' },
-  { id: 'search-subtitles', label: 'Search Subtitles', shortLabel: '4. Search' },
-  { id: 'clear-images', label: 'Clear Images', shortLabel: '5. Clear' },
-  { id: 'manual-cleanup', label: 'Manual Cleanup', shortLabel: '6. Cleanup' },
-  { id: 'ocr', label: 'Apply OCR', shortLabel: '7. OCR' },
-  { id: 'generate-subs', label: 'Generate Subtitles', shortLabel: '8. Generate' },
+  { id: 'auto-detect', label: 'Detect & Adjust Bounds', shortLabel: '2. Bounds' },
+  { id: 'search-subtitles', label: 'Search Subtitles', shortLabel: '3. Search' },
+  { id: 'clear-images', label: 'Clear Images', shortLabel: '4. Clear' },
+  { id: 'manual-cleanup', label: 'Manual Cleanup', shortLabel: '5. Cleanup' },
+  { id: 'ocr', label: 'Apply OCR', shortLabel: '6. OCR' },
+  { id: 'generate-subs', label: 'Generate Subtitles', shortLabel: '7. Generate' },
 ];
 
 export function WorkflowStepper() {
