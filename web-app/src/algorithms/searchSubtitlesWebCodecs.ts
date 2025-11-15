@@ -52,6 +52,7 @@ async function demuxMP4File(
     let samplesProcessed = 0;
     let totalSamples = 0;
     let fileFullyRead = false;
+    let resolved = false;
 
     mp4boxFile.onError = (error: any) => {
       reject(new Error(`MP4Box error: ${error}`));
@@ -125,7 +126,8 @@ async function demuxMP4File(
       }
 
       // Check if all samples have been processed
-      if (fileFullyRead && samplesProcessed >= totalSamples) {
+      if (!resolved && fileFullyRead && samplesProcessed >= totalSamples) {
+        resolved = true;
         console.log(`All ${samplesProcessed} samples processed, resolving`);
         resolve();
       }
@@ -159,14 +161,27 @@ async function demuxMP4File(
         mp4boxFile.flush();
         fileFullyRead = true;
 
-        // If no samples were extracted yet, wait a bit for onSamples to be called
-        // Otherwise resolve immediately if all samples are already processed
-        setTimeout(() => {
-          if (samplesProcessed >= totalSamples || totalSamples === 0) {
-            console.log(`Timeout: ${samplesProcessed}/${totalSamples} samples processed, resolving`);
+        // Poll for sample extraction completion
+        // MP4Box calls onSamples asynchronously in batches, so we need to wait
+        const checkInterval = setInterval(() => {
+          console.log(`Checking samples: ${samplesProcessed}/${totalSamples}`);
+          if (!resolved && (samplesProcessed >= totalSamples || totalSamples === 0)) {
+            resolved = true;
+            clearInterval(checkInterval);
+            console.log(`All ${samplesProcessed} samples processed, resolving`);
             resolve();
           }
-        }, 100);
+        }, 500); // Check every 500ms
+
+        // Safety timeout after 30 seconds
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            clearInterval(checkInterval);
+            console.warn(`Sample extraction timeout after 30s: ${samplesProcessed}/${totalSamples} samples processed`);
+            resolve();
+          }
+        }, 30000);
       }
     };
 
