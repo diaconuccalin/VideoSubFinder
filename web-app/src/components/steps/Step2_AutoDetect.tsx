@@ -665,9 +665,20 @@ export function Step2_AutoDetect() {
                   </div>
                 </div>
               </div>
-              <p className="text-sm text-gray-600">
-                🎯 Drag to move the region, or drag the edges/corners to resize. Use the timeline to scrub through the video and verify accuracy.
-              </p>
+              <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-blue-800">
+                      🎯 <strong>Drag to move</strong> the region, or <strong>drag the edges/corners to resize</strong>. Use the timeline to scrub through the video and verify accuracy.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
