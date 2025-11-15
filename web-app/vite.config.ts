@@ -18,6 +18,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
+          'opencv': ['@techstark/opencv-js'],
           'tesseract': ['tesseract.js'],
         },
       },
