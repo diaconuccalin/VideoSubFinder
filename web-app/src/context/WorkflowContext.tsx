@@ -5,6 +5,7 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { WorkflowState, WorkflowAction, WorkflowStep } from '../types/workflow.types';
 import { DEFAULT_DETECTION_SETTINGS, DEFAULT_CLUSTERING_SETTINGS, DEFAULT_OCR_SETTINGS } from '../config/settings';
+import { BoundingBox } from '../types/video.types';
 
 const initialState: WorkflowState = {
   currentStep: 'video-select',
@@ -123,6 +124,9 @@ interface WorkflowContextType {
   dispatch: React.Dispatch<WorkflowAction>;
   goToStep: (step: WorkflowStep) => void;
   completeCurrentStep: () => void;
+  completeStep: (step: WorkflowStep) => void;
+  setDetectedRegion: (region: BoundingBox) => void;
+  setAdjustedRegion: (region: BoundingBox) => void;
 }
 
 const WorkflowContext = createContext<WorkflowContextType | undefined>(undefined);
@@ -138,8 +142,30 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'COMPLETE_STEP', payload: state.currentStep });
   };
 
+  const completeStep = (step: WorkflowStep) => {
+    dispatch({ type: 'COMPLETE_STEP', payload: step });
+  };
+
+  const setDetectedRegion = (region: BoundingBox) => {
+    dispatch({ type: 'SET_DETECTED_REGION', payload: region });
+  };
+
+  const setAdjustedRegion = (region: BoundingBox) => {
+    dispatch({ type: 'SET_ADJUSTED_REGION', payload: region });
+  };
+
   return (
-    <WorkflowContext.Provider value={{ state, dispatch, goToStep, completeCurrentStep }}>
+    <WorkflowContext.Provider
+      value={{
+        state,
+        dispatch,
+        goToStep,
+        completeCurrentStep,
+        completeStep,
+        setDetectedRegion,
+        setAdjustedRegion,
+      }}
+    >
       {children}
     </WorkflowContext.Provider>
   );

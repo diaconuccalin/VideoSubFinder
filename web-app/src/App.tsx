@@ -6,6 +6,7 @@ import { WorkflowProvider, useWorkflow } from './context/WorkflowContext';
 import { Header } from './components/layout/Header';
 import { WorkflowStepper } from './components/layout/WorkflowStepper';
 import { Step1_VideoSelect } from './components/steps/Step1_VideoSelect';
+import { Step2_AutoDetect } from './components/steps/Step2_AutoDetect';
 import { StepPlaceholder } from './components/steps/StepPlaceholder';
 
 function AppContent() {
@@ -17,12 +18,7 @@ function AppContent() {
         return <Step1_VideoSelect />;
 
       case 'auto-detect':
-        return (
-          <StepPlaceholder
-            title="Auto-Detect Subtitle Position"
-            description="Automatically detect the region where subtitles appear in the video."
-          />
-        );
+        return <Step2_AutoDetect />;
 
       case 'manual-adjust':
         return (
