@@ -322,12 +322,41 @@ export async function searchSubtitlesWebCodecs(
       throw new Error('Failed to configure video decoder');
     }
 
-    // Decode all chunks
+    // Report demuxing complete, starting decode
+    if (onProgress) {
+      onProgress({
+        currentTime: startTime,
+        totalTime: endTime - startTime,
+        percentage: 5,
+        framesProcessed: 0,
+        subtitlesFound: 0,
+        elapsedTime: performance.now() - startTimeMs,
+        estimatedTimeRemaining: 0,
+      });
+    }
+
+    // Decode all chunks with progress reporting
+    let chunksDecoded = 0;
     for (const { chunk } of chunks) {
       if (shouldStop && shouldStop()) {
         break;
       }
       decoder.decode(chunk);
+      chunksDecoded++;
+
+      // Report decoding progress every 100 chunks
+      if (onProgress && chunksDecoded % 100 === 0) {
+        const decodingProgress = (chunksDecoded / chunks.length) * 0.15; // 15% for decoding
+        onProgress({
+          currentTime: startTime,
+          totalTime: endTime - startTime,
+          percentage: 5 + decodingProgress * 100,
+          framesProcessed: 0,
+          subtitlesFound: 0,
+          elapsedTime: performance.now() - startTimeMs,
+          estimatedTimeRemaining: 0,
+        });
+      }
     }
 
     await decoder.flush();
@@ -449,8 +478,9 @@ export async function searchSubtitlesWebCodecs(
       // Report progress
       if (onProgress && i % 10 === 0) {
         const elapsed = performance.now() - startTimeMs;
-        const percentage = (i / totalFrames) * 100;
-        const estimatedTotal = (elapsed / percentage) * 100;
+        const processingProgress = (i / totalFrames) * 0.8; // 80% for processing
+        const percentage = 20 + processingProgress * 100; // 20% already used for demux+decode
+        const estimatedTotal = (elapsed / (percentage / 100)) ;
         const estimatedRemaining = Math.max(0, estimatedTotal - elapsed);
 
         onProgress({
