@@ -103,65 +103,60 @@ export function Step2_AutoDetect() {
     const vizTime = state.videoMetadata!.duration * 0.1;
     await seekToTime(video, vizTime);
 
-    // Create canvas and draw video frame
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(video, 0, 0);
+    // Wait a bit to ensure frame is loaded
+    await new Promise(resolve => setTimeout(resolve, 100));
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const { data } = imageData;
-
-    // Draw semi-transparent overlay on detected region
-    for (let y = bounds.ymin; y <= bounds.ymax; y++) {
-      for (let x = bounds.xmin; x <= bounds.xmax; x++) {
-        const idx = (y * canvas.width + x) * 4;
-        data[idx] = Math.min(255, data[idx] * 0.5 + 255 * 0.5); // R
-        data[idx + 1] = Math.min(255, data[idx + 1] * 0.5); // G
-        data[idx + 2] = Math.min(255, data[idx + 2] * 0.5); // B
-      }
-    }
-
-    // Draw border
-    const drawBorder = (x1: number, y1: number, x2: number, y2: number) => {
-      for (let x = x1; x <= x2; x++) {
-        for (let dy = 0; dy < 2; dy++) {
-          [y1 + dy, y2 - dy].forEach((y) => {
-            if (y >= 0 && y < canvas.height) {
-              const idx = (y * canvas.width + x) * 4;
-              data[idx] = 255;
-              data[idx + 1] = 0;
-              data[idx + 2] = 0;
-            }
-          });
-        }
-      }
-
-      for (let y = y1; y <= y2; y++) {
-        for (let dx = 0; dx < 2; dx++) {
-          [x1 + dx, x2 - dx].forEach((x) => {
-            if (x >= 0 && x < canvas.width) {
-              const idx = (y * canvas.width + x) * 4;
-              data[idx] = 255;
-              data[idx + 1] = 0;
-              data[idx + 2] = 0;
-            }
-          });
-        }
-      }
-    };
-
-    drawBorder(bounds.xmin, bounds.ymin, bounds.xmax, bounds.ymax);
-
-    setVisualization(imageData);
-
-    // Draw visualization on canvas
+    // Draw visualization on canvas directly using canvas 2D API (faster than ImageData manipulation)
     if (canvasRef.current) {
-      canvasRef.current.width = canvas.width;
-      canvasRef.current.height = canvas.height;
-      const canvasCtx = canvasRef.current.getContext('2d')!;
-      canvasCtx.putImageData(imageData, 0, 0);
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const ctx = canvas.getContext('2d')!;
+
+      // Draw the video frame
+      ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+
+      // Draw semi-transparent red overlay on detected region
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+      ctx.fillRect(
+        bounds.xmin,
+        bounds.ymin,
+        bounds.xmax - bounds.xmin,
+        bounds.ymax - bounds.ymin
+      );
+
+      // Draw red border (4px thick for visibility)
+      ctx.strokeStyle = '#FF0000';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(
+        bounds.xmin,
+        bounds.ymin,
+        bounds.xmax - bounds.xmin,
+        bounds.ymax - bounds.ymin
+      );
+
+      // Also draw corner markers for better visibility
+      const markerSize = 20;
+      ctx.fillStyle = '#FF0000';
+
+      // Top-left corner
+      ctx.fillRect(bounds.xmin - 2, bounds.ymin - 2, markerSize, 4);
+      ctx.fillRect(bounds.xmin - 2, bounds.ymin - 2, 4, markerSize);
+
+      // Top-right corner
+      ctx.fillRect(bounds.xmax - markerSize + 2, bounds.ymin - 2, markerSize, 4);
+      ctx.fillRect(bounds.xmax - 2, bounds.ymin - 2, 4, markerSize);
+
+      // Bottom-left corner
+      ctx.fillRect(bounds.xmin - 2, bounds.ymax - 2, markerSize, 4);
+      ctx.fillRect(bounds.xmin - 2, bounds.ymax - markerSize + 2, 4, markerSize);
+
+      // Bottom-right corner
+      ctx.fillRect(bounds.xmax - markerSize + 2, bounds.ymax - 2, markerSize, 4);
+      ctx.fillRect(bounds.xmax - 2, bounds.ymax - markerSize + 2, 4, markerSize);
+
+      setVisualization(ctx.getImageData(0, 0, canvas.width, canvas.height));
     }
   };
 
@@ -230,7 +225,7 @@ export function Step2_AutoDetect() {
 
         {/* Visualization Canvas */}
         <div className="mb-6">
-          <div className="border-2 border-submarine-sky rounded-lg overflow-hidden bg-black flex items-center justify-center">
+          <div className="border-2 border-submarine-sky rounded-lg bg-gray-900">
             {isDetecting ? (
               <div className="py-32 text-center">
                 <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-submarine-ocean mx-auto mb-4"></div>
@@ -252,13 +247,20 @@ export function Step2_AutoDetect() {
                 )}
               </div>
             ) : visualization ? (
-              <canvas ref={canvasRef} className="max-w-full h-auto" />
+              <div className="overflow-auto max-h-[600px]">
+                <canvas ref={canvasRef} className="block" />
+              </div>
             ) : (
               <div className="py-32 text-center">
                 <p className="text-gray-400">No visualization available</p>
               </div>
             )}
           </div>
+          {visualization && (
+            <p className="text-sm text-gray-600 mt-2">
+              📌 Scroll to view the entire frame. The detected subtitle region is highlighted in red.
+            </p>
+          )}
         </div>
 
         {/* Detection Results */}
