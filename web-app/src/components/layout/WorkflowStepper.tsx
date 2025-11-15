@@ -28,7 +28,7 @@ export function WorkflowStepper() {
   const currentIndex = STEPS.findIndex(step => step.id === state.currentStep);
 
   return (
-    <div className="bg-gradient-to-r from-submarine-sky/20 to-submarine-ocean/20 border-b-2 border-submarine-ocean px-6 py-4">
+    <div className="bg-white border-b-2 border-submarine-ocean px-6 py-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between">
           {STEPS.map((step, index) => {
@@ -43,11 +43,11 @@ export function WorkflowStepper() {
                   onClick={() => isAccessible && goToStep(step.id)}
                   disabled={!isAccessible}
                   className={`
-                    flex items-center justify-center w-10 h-10 rounded-full border-3 transition-all font-bold
-                    ${isCurrent ? 'border-submarine-ocean bg-submarine-ocean text-white shadow-md scale-110' : ''}
+                    flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors font-bold
+                    ${isCurrent ? 'border-submarine-ocean bg-submarine-ocean text-white' : ''}
                     ${isCompleted && !isCurrent ? 'border-submarine-coral bg-submarine-coral text-white' : ''}
                     ${!isCurrent && !isCompleted ? 'border-gray-400 bg-white text-gray-600' : ''}
-                    ${isAccessible ? 'cursor-pointer hover:scale-110 hover:shadow-lg' : 'cursor-not-allowed opacity-50'}
+                    ${isAccessible ? 'cursor-pointer hover:bg-opacity-90' : 'cursor-not-allowed opacity-50'}
                   `}
                 >
                   {isCompleted && !isCurrent ? (
@@ -74,7 +74,7 @@ export function WorkflowStepper() {
                 {index < STEPS.length - 1 && (
                   <div
                     className={`
-                      h-1 w-8 mx-2 transition-all rounded-full
+                      h-1 w-8 mx-2 transition-colors
                       ${index < currentIndex ? 'bg-submarine-coral' : 'bg-gray-300'}
                     `}
                   />

@@ -4,7 +4,7 @@
 
 export function Header() {
   return (
-    <header className="bg-gradient-to-r from-submarine-yellow via-submarine-dark-yellow to-primary-600 text-submarine-deep-blue shadow-lg border-b-4 border-submarine-ocean">
+    <header className="bg-submarine-yellow text-submarine-deep-blue border-b-4 border-submarine-ocean">
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -15,7 +15,7 @@ export function Header() {
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-wide drop-shadow-sm">VideoSubFinder Web</h1>
+              <h1 className="text-2xl font-bold tracking-wide">VideoSubFinder Web</h1>
               <p className="text-sm text-submarine-deep-blue/80 font-medium">Extract hardcoded subtitles from videos</p>
             </div>
           </div>
