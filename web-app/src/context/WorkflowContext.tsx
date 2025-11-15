@@ -42,11 +42,21 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
       };
 
     case 'SET_VIDEO_FILE':
+      // Reset all workflow state when a new video is selected
+      // Mark video-select as completed since we have a valid video
       return {
-        ...state,
+        ...initialState,
+        currentStep: 'video-select',
+        completedSteps: ['video-select'],
         videoFile: action.payload.file,
         videoMetadata: action.payload.metadata,
         videoUrl: action.payload.url,
+      };
+
+    case 'CLEAR_VIDEO':
+      // Clear video and reset workflow to initial state
+      return {
+        ...initialState,
       };
 
     case 'SET_DETECTED_REGION':

@@ -8,7 +8,7 @@ import { VideoMetadata } from '../../types/video.types';
 import { VIDEO_CONSTRAINTS } from '../../config/settings';
 
 export function Step1_VideoSelect() {
-  const { state, dispatch, goToStep, completeCurrentStep } = useWorkflow();
+  const { state, dispatch, goToStep } = useWorkflow();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,13 +50,13 @@ export function Step1_VideoSelect() {
         throw new Error(`Video duration exceeds ${VIDEO_CONSTRAINTS.maxDuration / 3600} hours`);
       }
 
-      // Store video info in state
+      // Store video info in state (this also marks step as completed and resets any previous detection)
       dispatch({
         type: 'SET_VIDEO_FILE',
         payload: { file, metadata, url: videoUrl },
       });
 
-      completeCurrentStep();
+      // Navigate to auto-detect step
       goToStep('auto-detect');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load video');
@@ -167,7 +167,8 @@ export function Step1_VideoSelect() {
             <div className="flex space-x-4">
               <button
                 onClick={() => {
-                  dispatch({ type: 'SET_VIDEO_FILE', payload: { file: null, metadata: null, url: null } });
+                  // Clear video and reset workflow (this will also clear Step 2 detection results)
+                  dispatch({ type: 'CLEAR_VIDEO' });
                   setError(null);
                 }}
                 className="btn-secondary"
