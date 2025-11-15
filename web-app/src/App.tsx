@@ -7,6 +7,7 @@ import { Header } from './components/layout/Header';
 import { WorkflowStepper } from './components/layout/WorkflowStepper';
 import { Step1_VideoSelect } from './components/steps/Step1_VideoSelect';
 import { Step2_AutoDetect } from './components/steps/Step2_AutoDetect';
+import { Step3_SearchSubtitles } from './components/steps/Step3_SearchSubtitles';
 import { StepPlaceholder } from './components/steps/StepPlaceholder';
 
 function AppContent() {
@@ -29,12 +30,7 @@ function AppContent() {
         );
 
       case 'search-subtitles':
-        return (
-          <StepPlaceholder
-            title="Search Subtitles"
-            description="Search the entire video for subtitle frames."
-          />
-        );
+        return <Step3_SearchSubtitles />;
 
       case 'clear-images':
         return (
