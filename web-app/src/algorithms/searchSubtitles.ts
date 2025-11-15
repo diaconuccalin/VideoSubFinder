@@ -267,12 +267,19 @@ async function extractFrame(
   // Seek to timestamp
   video.currentTime = timestamp;
 
-  // Wait for frame to be ready
-  await new Promise<void>((resolve) => {
+  // Wait for frame to be ready (with timeout)
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      video.removeEventListener('seeked', onSeeked);
+      reject(new Error(`Timeout waiting for video to seek to ${timestamp}s`));
+    }, 5000); // 5 second timeout
+
     const onSeeked = () => {
+      clearTimeout(timeout);
       video.removeEventListener('seeked', onSeeked);
       resolve();
     };
+
     video.addEventListener('seeked', onSeeked);
   });
 
@@ -342,17 +349,28 @@ export async function searchSubtitles(
   onProgress?: (progress: SearchProgress) => void,
   shouldStop?: () => boolean
 ): Promise<SubtitleFrame[]> {
+  // Validate video is ready
+  if (!video.videoWidth || !video.videoHeight) {
+    throw new Error('Video dimensions not available. Video may not be loaded properly.');
+  }
+
+  if (video.readyState < 2) {
+    throw new Error('Video not ready. Please wait for video to load.');
+  }
+
   const results: SubtitleFrame[] = [];
   const frameBuffer: FrameBuffer[] = [];
   const DL = params.frameSequenceLength;
 
-  // Create canvas for frame extraction
+  // Create canvas for frame extraction (full video size)
   const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d')!;
+
+  // Calculate region dimensions for later use
   const regionWidth = detectedRegion.xmax - detectedRegion.xmin;
   const regionHeight = detectedRegion.ymax - detectedRegion.ymin;
-  canvas.width = regionWidth;
-  canvas.height = regionHeight;
-  const ctx = canvas.getContext('2d')!;
 
   // Calculate frame rate and total frames
   const fps = 25; // Default assumption, could be extracted from video metadata
@@ -382,19 +400,42 @@ export async function searchSubtitles(
       }
 
       // Extract frame from video
-      const fullFrame = await extractFrame(video, currentTime, canvas, ctx);
+      let fullFrame: cv.Mat;
+      try {
+        fullFrame = await extractFrame(video, currentTime, canvas, ctx);
+      } catch (error) {
+        throw new Error(`Failed to extract frame at ${currentTime}s: ${error instanceof Error ? error.message : String(error)}`);
+      }
 
       // Crop to subtitle region
-      const rgbCropped = cropToRegion(fullFrame, detectedRegion);
-      fullFrame.delete();
+      let rgbCropped: cv.Mat;
+      try {
+        rgbCropped = cropToRegion(fullFrame, detectedRegion);
+        fullFrame.delete();
+      } catch (error) {
+        fullFrame.delete();
+        throw new Error(`Failed to crop frame to region: ${error instanceof Error ? error.message : String(error)}`);
+      }
 
       // Convert to gradient
-      const gradient = convertImageToGradient(rgbCropped, params);
+      let gradient: cv.Mat;
+      try {
+        gradient = convertImageToGradient(rgbCropped, params);
+      } catch (error) {
+        rgbCropped.delete();
+        throw new Error(`Failed to convert image to gradient: ${error instanceof Error ? error.message : String(error)}`);
+      }
 
       // Extract luminance if using ILA images
       let luminance: cv.Mat | null = null;
       if (params.useILAImages) {
-        luminance = extractLuminance(rgbCropped);
+        try {
+          luminance = extractLuminance(rgbCropped);
+        } catch (error) {
+          rgbCropped.delete();
+          gradient.delete();
+          throw new Error(`Failed to extract luminance: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
 
       // Add to frame buffer

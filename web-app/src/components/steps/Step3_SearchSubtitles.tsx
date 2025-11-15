@@ -158,7 +158,8 @@ export function Step3_SearchSubtitles() {
       }
     } catch (error) {
       console.error('Search error:', error);
-      alert('An error occurred during subtitle search. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`An error occurred during subtitle search:\n\n${errorMessage}\n\nCheck the console for more details.`);
     } finally {
       setIsSearching(false);
       shouldStopRef.current = false;
