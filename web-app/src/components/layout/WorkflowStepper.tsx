@@ -34,7 +34,13 @@ export function WorkflowStepper() {
           {STEPS.map((step, index) => {
             const isCompleted = state.completedSteps.includes(step.id);
             const isCurrent = step.id === state.currentStep;
-            const isAccessible = index <= currentIndex || isCompleted;
+            const isVisited = state.visitedSteps.includes(step.id);
+
+            // A step is accessible if:
+            // 1. It's been visited (can go back to visited steps), OR
+            // 2. All previous steps are completed (can move forward)
+            const allPreviousCompleted = index === 0 || STEPS.slice(0, index).every(s => state.completedSteps.includes(s.id));
+            const isAccessible = isVisited || allPreviousCompleted;
 
             return (
               <div key={step.id} className="flex items-center">

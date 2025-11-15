@@ -18,6 +18,7 @@ export type WorkflowStep =
 export interface WorkflowState {
   currentStep: WorkflowStep;
   completedSteps: WorkflowStep[];
+  visitedSteps: WorkflowStep[];  // Tracks all steps that have been visited
 
   // Step 1: Video Selection
   videoFile: File | null;

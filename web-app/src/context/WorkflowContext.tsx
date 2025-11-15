@@ -10,6 +10,7 @@ import { BoundingBox } from '../types/video.types';
 const initialState: WorkflowState = {
   currentStep: 'video-select',
   completedSteps: [],
+  visitedSteps: [],
   videoFile: null,
   videoMetadata: null,
   videoUrl: null,
@@ -33,7 +34,11 @@ const initialState: WorkflowState = {
 function workflowReducer(state: WorkflowState, action: WorkflowAction): WorkflowState {
   switch (action.type) {
     case 'SET_STEP':
-      return { ...state, currentStep: action.payload };
+      // Add step to visitedSteps if not already there
+      const visitedSteps = state.visitedSteps.includes(action.payload)
+        ? state.visitedSteps
+        : [...state.visitedSteps, action.payload];
+      return { ...state, currentStep: action.payload, visitedSteps };
 
     case 'COMPLETE_STEP':
       return {
@@ -43,11 +48,12 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
 
     case 'SET_VIDEO_FILE':
       // Reset all workflow state when a new video is selected
-      // Mark video-select as completed since we have a valid video
+      // Mark video-select as completed and visited since we have a valid video
       return {
         ...initialState,
         currentStep: 'video-select',
         completedSteps: ['video-select'],
+        visitedSteps: ['video-select'],
         videoFile: action.payload.file,
         videoMetadata: action.payload.metadata,
         videoUrl: action.payload.url,
