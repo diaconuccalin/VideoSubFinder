@@ -71,9 +71,23 @@ export function Step3_SearchSubtitles() {
     try {
       let subtitleFrames: SubtitleFrame[];
 
-      // Try WebCodecs first (10-20x faster)
-      if (useWebCodecs && state.videoFile && isWebCodecsSupported()) {
-        console.log('Using WebCodecs API for fast frame decoding');
+      // Determine which approach to use based on time range
+      const videoDuration = videoRef.current?.duration || 0;
+      const searchDuration = endTime - startTime;
+      const searchPercentage = videoDuration > 0 ? (searchDuration / videoDuration) * 100 : 100;
+
+      // Use WebCodecs only for large time ranges (> 30% of video)
+      // For smaller ranges, seeking is actually faster since we don't need to process the entire file
+      const shouldUseWebCodecs =
+        useWebCodecs &&
+        state.videoFile &&
+        isWebCodecsSupported() &&
+        searchPercentage > 30;
+
+      if (shouldUseWebCodecs && state.videoFile) {
+        console.log(
+          `Using WebCodecs API for fast frame decoding (${searchPercentage.toFixed(1)}% of video)`
+        );
         subtitleFrames = await searchSubtitlesWebCodecs(
           state.videoFile,
           detectedRegion,
@@ -86,8 +100,10 @@ export function Step3_SearchSubtitles() {
           () => shouldStopRef.current
         );
       } else {
-        // Fallback to seeking-based approach
-        console.log('Using video seeking for frame extraction');
+        // Use seeking-based approach for small/medium ranges
+        console.log(
+          `Using video seeking for frame extraction (${searchPercentage.toFixed(1)}% of video)`
+        );
         if (!videoRef.current) {
           throw new Error('Video element not available');
         }
