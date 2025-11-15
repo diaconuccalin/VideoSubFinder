@@ -18,7 +18,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
-          'opencv': ['opencv-ts'],
           'tesseract': ['tesseract.js'],
         },
       },
@@ -27,8 +26,5 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
-  },
-  optimizeDeps: {
-    exclude: ['opencv-ts'],
   },
 })
