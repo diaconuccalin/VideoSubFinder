@@ -37,10 +37,22 @@ export function Step2_AutoDetect() {
   // Detection parameters (can be adjusted by user)
   const [params, setParams] = useState<AutoDetectParams>(DEFAULT_AUTO_DETECT_PARAMS);
 
-  // Auto-detect on component mount
+  // Restore detected region from global state when component mounts
   useEffect(() => {
-    if (state.videoUrl && !isDetecting && !detectedRegion) {
-      runAutoDetection();
+    if (state.detectedRegion && !detectedRegion) {
+      setDetectedRegionState(state.detectedRegion);
+    }
+  }, [state.detectedRegion]);
+
+  // Auto-detect on video change (only if no previous detection exists for this video)
+  useEffect(() => {
+    // Clear detection when video changes
+    const videoChanged = state.videoUrl && state.videoUrl !== '';
+    if (videoChanged && !state.detectedRegion) {
+      // Only run auto-detection if no previous detection exists
+      if (!isDetecting && !detectedRegion) {
+        runAutoDetection();
+      }
     }
   }, [state.videoUrl]);
 
