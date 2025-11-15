@@ -49,6 +49,9 @@ async function demuxMP4File(
   return new Promise((resolve, reject) => {
     const mp4boxFile = MP4Box.createFile();
     let videoTrack: any = null;
+    let samplesProcessed = 0;
+    let totalSamples = 0;
+    let fileFullyRead = false;
 
     mp4boxFile.onError = (error: any) => {
       reject(new Error(`MP4Box error: ${error}`));
@@ -62,6 +65,10 @@ async function demuxMP4File(
         reject(new Error('No video track found in file'));
         return;
       }
+
+      // Store total number of samples
+      totalSamples = videoTrack.nb_samples;
+      console.log(`Video has ${totalSamples} total samples`);
 
       // Extract codec configuration
       const trak = mp4boxFile.getTrackById(videoTrack.id);
@@ -114,6 +121,13 @@ async function demuxMP4File(
 
         const timestampSeconds = sample.cts / sample.timescale;
         onChunk(chunk, timestampSeconds);
+        samplesProcessed++;
+      }
+
+      // Check if all samples have been processed
+      if (fileFullyRead && samplesProcessed >= totalSamples) {
+        console.log(`All ${samplesProcessed} samples processed, resolving`);
+        resolve();
       }
     };
 
@@ -141,8 +155,18 @@ async function demuxMP4File(
       if (offset < file.size) {
         readNextChunk();
       } else {
+        console.log('File fully read, flushing MP4Box');
         mp4boxFile.flush();
-        resolve();
+        fileFullyRead = true;
+
+        // If no samples were extracted yet, wait a bit for onSamples to be called
+        // Otherwise resolve immediately if all samples are already processed
+        setTimeout(() => {
+          if (samplesProcessed >= totalSamples || totalSamples === 0) {
+            console.log(`Timeout: ${samplesProcessed}/${totalSamples} samples processed, resolving`);
+            resolve();
+          }
+        }, 100);
       }
     };
 
