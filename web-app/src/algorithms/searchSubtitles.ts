@@ -43,9 +43,9 @@ export interface SearchParams {
 }
 
 export const DEFAULT_SEARCH_PARAMS: SearchParams = {
-  frameSequenceLength: 3,
-  textPercentageThreshold: 0.25,
-  useILAImages: true,
+  frameSequenceLength: 6, // g_DL = 6 from desktop (SSAlgorithms.cpp:44)
+  textPercentageThreshold: 0.30, // g_tp = 0.3 from desktop (SSAlgorithms.cpp:45)
+  useILAImages: true, // g_use_ILA_images_for_search_subtitles = true (SSAlgorithms.cpp:51)
   useEdgeDetection: true,
   minTextWidth: 40,
   minTextHeight: 8,
@@ -337,8 +337,74 @@ function areSimilarSubtitles(
 }
 
 /**
- * Main search algorithm
+ * Extract and process a single frame at specific time position
+ * Returns the processed frame buffer or null if extraction fails
+ */
+async function extractAndProcessFrame(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  time: number,
+  detectedRegion: BoundingBox,
+  params: SearchParams
+): Promise<FrameBuffer | null> {
+  try {
+    // Extract frame
+    const fullFrame = await extractFrame(video, time, canvas, ctx);
+
+    // Crop to subtitle region
+    const rgbCropped = cropToRegion(fullFrame, detectedRegion);
+    fullFrame.delete();
+
+    // Convert to gradient
+    const gradient = convertImageToGradient(rgbCropped, params);
+
+    // Extract luminance if using ILA images
+    const luminance = params.useILAImages
+      ? extractLuminance(rgbCropped)
+      : new cv.Mat();
+
+    return {
+      timestamp: time,
+      rgb: rgbCropped,
+      gradient,
+      luminance,
+    };
+  } catch (error) {
+    console.error(`Failed to extract frame at ${time}s:`, error);
+    return null;
+  }
+}
+
+/**
+ * Phase 1: Quick check with only 2 edge frames
+ * Returns true if text is suspected (requires Phase 2 verification)
+ */
+function quickCheckTwoFrames(
+  frame1: FrameBuffer,
+  frame2: FrameBuffer,
+  params: SearchParams,
+  regionWidth: number,
+  regionHeight: number
+): boolean {
+  // Intersect the two gradient frames
+  const isaQuick = intersectFrames(frame1.gradient, frame2.gradient);
+
+  // Quick text analysis
+  const hasText = analyzeImageForText(isaQuick, params, regionWidth, regionHeight);
+
+  // Clean up
+  isaQuick.delete();
+
+  return hasText;
+}
+
+/**
+ * Main search algorithm with two-phase detection
  * Mimics FastSearchSubtitles() from SSAlgorithms.cpp:1128-2013
+ *
+ * Phase 1: Jump by DL/2 frames, quick check with 2 edge frames only
+ * Phase 2: If text suspected, extract all DL frames for detailed verification
  */
 export async function searchSubtitles(
   video: HTMLVideoElement,
@@ -359,8 +425,8 @@ export async function searchSubtitles(
   }
 
   const results: SubtitleFrame[] = [];
-  const frameBuffer: FrameBuffer[] = [];
   const DL = params.frameSequenceLength;
+  const ddl = Math.floor(DL / 2); // Half of DL for stride/jumping
 
   // Create canvas for frame extraction (full video size)
   const canvas = document.createElement('canvas');
@@ -368,186 +434,169 @@ export async function searchSubtitles(
   canvas.height = video.videoHeight;
   const ctx = canvas.getContext('2d')!;
 
-  // Calculate region dimensions for later use
+  // Calculate region dimensions
   const regionWidth = detectedRegion.xmax - detectedRegion.xmin;
   const regionHeight = detectedRegion.ymax - detectedRegion.ymin;
 
-  // Calculate frame rate and total frames
-  const fps = 25; // Default assumption, could be extracted from video metadata
+  // Calculate frame rate and timing
+  const fps = 25; // Default assumption
   const totalDuration = endTime - startTime;
   const frameInterval = 1 / fps;
   const startTimeMs = performance.now();
 
+  let fn = 0; // Frame number
   let currentTime = startTime;
-  let framesProcessed = 0;
-  let isaAccumulator: cv.Mat | null = null;
-  let ilaAccumulator: cv.Mat | null = null;
   let lastSubtitle: SubtitleFrame | null = null;
   let currentSequenceStart: number | null = null;
+  let framesProcessed = 0;
+
+  console.log(`Starting two-phase search: DL=${DL}, stride=${ddl}, range=${startTime}s-${endTime}s`);
 
   try {
+    // Main loop: jump forward by ddl (DL/2) frames
     while (currentTime < endTime) {
-      // Check if we should stop
       if (shouldStop && shouldStop()) {
         break;
       }
 
-      // Sample frames based on sampling interval
-      if (framesProcessed % params.samplingInterval !== 0) {
-        currentTime += frameInterval;
-        framesProcessed++;
+      // Calculate positions for Phase 1 edge frames
+      const edge1Time = currentTime + (ddl - 1) * frameInterval; // fn + (DL/2) - 1
+      const edge2Time = currentTime + (DL - 1) * frameInterval;  // fn + DL - 1
+
+      // Skip if beyond end time
+      if (edge2Time > endTime) {
+        break;
+      }
+
+      // **PHASE 1: Quick Check with 2 Edge Frames**
+      const edge1 = await extractAndProcessFrame(video, canvas, ctx, edge1Time, detectedRegion, params);
+      const edge2 = await extractAndProcessFrame(video, canvas, ctx, edge2Time, detectedRegion, params);
+
+      if (!edge1 || !edge2) {
+        // Frame extraction failed, skip this position
+        currentTime += ddl * frameInterval;
+        fn += ddl;
         continue;
       }
 
-      // Extract frame from video
-      let fullFrame: cv.Mat;
-      try {
-        fullFrame = await extractFrame(video, currentTime, canvas, ctx);
-      } catch (error) {
-        throw new Error(`Failed to extract frame at ${currentTime}s: ${error instanceof Error ? error.message : String(error)}`);
-      }
+      // Quick check: intersect just these 2 frames
+      const textSuspected = quickCheckTwoFrames(edge1, edge2, params, regionWidth, regionHeight);
 
-      // Crop to subtitle region
-      let rgbCropped: cv.Mat;
-      try {
-        rgbCropped = cropToRegion(fullFrame, detectedRegion);
-        fullFrame.delete();
-      } catch (error) {
-        fullFrame.delete();
-        throw new Error(`Failed to crop frame to region: ${error instanceof Error ? error.message : String(error)}`);
-      }
+      if (textSuspected) {
+        // **PHASE 2: Detailed Verification with All DL Frames**
+        console.log(`Phase 2 verification at ${currentTime.toFixed(2)}s (text suspected in phase 1)`);
 
-      // Convert to gradient
-      let gradient: cv.Mat;
-      try {
-        gradient = convertImageToGradient(rgbCropped, params);
-      } catch (error) {
-        rgbCropped.delete();
-        throw new Error(`Failed to convert image to gradient: ${error instanceof Error ? error.message : String(error)}`);
-      }
-
-      // Extract luminance if using ILA images
-      let luminance: cv.Mat | null = null;
-      if (params.useILAImages) {
-        try {
-          luminance = extractLuminance(rgbCropped);
-        } catch (error) {
-          rgbCropped.delete();
-          gradient.delete();
-          throw new Error(`Failed to extract luminance: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
-
-      // Add to frame buffer
-      frameBuffer.push({
-        timestamp: currentTime,
-        rgb: rgbCropped,
-        gradient: gradient,
-        luminance: luminance || new cv.Mat(),
-      });
-
-      // Keep only DL frames in buffer
-      if (frameBuffer.length > DL) {
-        const removed = frameBuffer.shift()!;
-        removed.rgb.delete();
-        removed.gradient.delete();
-        removed.luminance.delete();
-      }
-
-      // Process when we have DL frames
-      if (frameBuffer.length === DL) {
-        // Intersect all gradient frames to create ISA image
-        isaAccumulator = frameBuffer[0].gradient.clone();
-        for (let i = 1; i < DL; i++) {
-          const newAccumulator = intersectFrames(isaAccumulator, frameBuffer[i].gradient);
-          isaAccumulator.delete();
-          isaAccumulator = newAccumulator;
+        // Extract all DL frames
+        const allFrames: (FrameBuffer | null)[] = [];
+        for (let i = 0; i < DL; i++) {
+          const frameTime = currentTime + i * frameInterval;
+          // Reuse edge frames if we already have them
+          if (i === ddl - 1) {
+            allFrames.push(edge1);
+          } else if (i === DL - 1) {
+            allFrames.push(edge2);
+          } else {
+            allFrames.push(await extractAndProcessFrame(video, canvas, ctx, frameTime, detectedRegion, params));
+          }
         }
 
-        // Intersect luminance frames to create ILA image
-        if (params.useILAImages && frameBuffer[0].luminance.rows > 0) {
-          ilaAccumulator = frameBuffer[0].luminance.clone();
+        // Filter out null frames
+        const validFrames = allFrames.filter((f): f is FrameBuffer => f !== null);
+
+        if (validFrames.length === DL) {
+          // Intersect all DL gradient frames
+          let isaFull = validFrames[0].gradient.clone();
           for (let i = 1; i < DL; i++) {
-            const newAccumulator = intersectLuminance(ilaAccumulator, frameBuffer[i].luminance);
-            ilaAccumulator.delete();
-            ilaAccumulator = newAccumulator;
-          }
-        }
-
-        // Analyze ISA image for text
-        const hasText = analyzeImageForText(
-          isaAccumulator,
-          params,
-          regionWidth,
-          regionHeight
-        );
-
-        if (hasText) {
-          // Text detected - check if this is a new subtitle or continuation
-          if (currentSequenceStart === null) {
-            // Start of new subtitle sequence
-            currentSequenceStart = frameBuffer[0].timestamp;
+            const newIsa = intersectFrames(isaFull, validFrames[i].gradient);
+            isaFull.delete();
+            isaFull = newIsa;
           }
 
-          // Update end time to current frame
-          const sequenceEnd = frameBuffer[DL - 1].timestamp;
-
-          // Create subtitle frame (we'll save it when sequence ends)
-          const subtitleFrame: SubtitleFrame = {
-            id: `sub_${results.length}_${Math.floor(currentSequenceStart * 1000)}`,
-            startTime: currentSequenceStart,
-            endTime: sequenceEnd,
-            imageData: matToImageData(frameBuffer[0].rgb),
-          };
-
-          lastSubtitle = subtitleFrame;
-        } else if (currentSequenceStart !== null && lastSubtitle !== null) {
-          // No text detected, but we had a sequence - save it
-
-          // Check if similar to previous subtitle (avoid duplicates)
-          const isDuplicate = results.length > 0 &&
-            areSimilarSubtitles(lastSubtitle, results[results.length - 1]);
-
-          if (!isDuplicate) {
-            results.push(lastSubtitle);
+          // Intersect all DL luminance frames (if enabled)
+          let ilaFull: cv.Mat | null = null;
+          if (params.useILAImages && validFrames[0].luminance.rows > 0) {
+            ilaFull = validFrames[0].luminance.clone();
+            for (let i = 1; i < DL; i++) {
+              const newIla = intersectLuminance(ilaFull, validFrames[i].luminance);
+              ilaFull.delete();
+              ilaFull = newIla;
+            }
           }
 
-          currentSequenceStart = null;
-          lastSubtitle = null;
+          // Detailed text analysis
+          const hasText = analyzeImageForText(isaFull, params, regionWidth, regionHeight);
+
+          if (hasText) {
+            // Text confirmed! Save subtitle
+            if (currentSequenceStart === null) {
+              currentSequenceStart = validFrames[0].timestamp;
+            }
+
+            const sequenceEnd = validFrames[DL - 1].timestamp;
+            lastSubtitle = {
+              id: `sub_${results.length}_${Math.floor(currentSequenceStart * 1000)}`,
+              startTime: currentSequenceStart,
+              endTime: sequenceEnd,
+              imageData: matToImageData(validFrames[0].rgb),
+            };
+
+            console.log(`Subtitle detected: ${currentSequenceStart.toFixed(2)}s - ${sequenceEnd.toFixed(2)}s`);
+          } else if (currentSequenceStart !== null && lastSubtitle !== null) {
+            // Text sequence ended, save previous subtitle
+            const isDuplicate = results.length > 0 &&
+              areSimilarSubtitles(lastSubtitle, results[results.length - 1]);
+
+            if (!isDuplicate) {
+              results.push(lastSubtitle);
+            }
+
+            currentSequenceStart = null;
+            lastSubtitle = null;
+          }
+
+          // Clean up
+          isaFull.delete();
+          if (ilaFull) ilaFull.delete();
         }
 
-        // Clean up accumulator
-        if (isaAccumulator) {
-          isaAccumulator.delete();
-          isaAccumulator = null;
+        // Clean up all extracted frames
+        for (const frame of validFrames) {
+          frame.rgb.delete();
+          frame.gradient.delete();
+          frame.luminance.delete();
         }
-        if (ilaAccumulator) {
-          ilaAccumulator.delete();
-          ilaAccumulator = null;
-        }
+      } else {
+        // No text in phase 1, clean up edge frames
+        edge1.rgb.delete();
+        edge1.gradient.delete();
+        edge1.luminance.delete();
+        edge2.rgb.delete();
+        edge2.gradient.delete();
+        edge2.luminance.delete();
       }
+
+      // Jump forward by DL/2 frames
+      currentTime += ddl * frameInterval;
+      fn += ddl;
+      framesProcessed += textSuspected ? DL : 2; // Count frames actually processed
 
       // Update progress
-      framesProcessed++;
       const elapsed = performance.now() - startTimeMs;
       const percentage = ((currentTime - startTime) / totalDuration) * 100;
       const estimatedTotal = (elapsed / percentage) * 100;
       const estimatedRemaining = estimatedTotal - elapsed;
 
-      if (onProgress && framesProcessed % 10 === 0) {
+      if (onProgress && fn % 10 === 0) {
         onProgress({
           currentTime,
           totalTime: totalDuration,
-          percentage,
+          percentage: Math.min(100, percentage),
           framesProcessed,
           subtitlesFound: results.length,
           elapsedTime: elapsed,
           estimatedTimeRemaining: Math.max(0, estimatedRemaining),
         });
       }
-
-      // Move to next frame
-      currentTime += frameInterval;
     }
 
     // Save last subtitle if sequence was ongoing
@@ -573,17 +622,10 @@ export async function searchSubtitles(
       });
     }
 
+    console.log(`Two-phase search complete: Found ${results.length} subtitles, processed ${framesProcessed} frames`);
     return results;
-  } finally {
-    // Clean up frame buffer
-    for (const frame of frameBuffer) {
-      frame.rgb.delete();
-      frame.gradient.delete();
-      frame.luminance.delete();
-    }
-
-    // Clean up accumulators
-    if (isaAccumulator) isaAccumulator.delete();
-    if (ilaAccumulator) ilaAccumulator.delete();
+  } catch (error) {
+    console.error('Search error:', error);
+    throw error;
   }
 }
