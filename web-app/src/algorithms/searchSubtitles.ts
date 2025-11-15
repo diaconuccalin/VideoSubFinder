@@ -94,7 +94,7 @@ interface FrameBuffer {
  * Convert image to gradient using Sobel edge detection
  * Mimics ConvertImage() from SSAlgorithms.cpp
  */
-function convertImageToGradient(src: cv.Mat, params: SearchParams): cv.Mat {
+export function convertImageToGradient(src: cv.Mat, params: SearchParams): cv.Mat {
   const gray = new cv.Mat();
   const gradX = new cv.Mat();
   const gradY = new cv.Mat();
@@ -145,7 +145,7 @@ function convertImageToGradient(src: cv.Mat, params: SearchParams): cv.Mat {
  * Extract luminance (Y-channel) from RGB image
  * Used for ILA image generation
  */
-function extractLuminance(src: cv.Mat): cv.Mat {
+export function extractLuminance(src: cv.Mat): cv.Mat {
   const yuv = new cv.Mat();
   const yChannel = new cv.Mat();
 
@@ -170,7 +170,7 @@ function extractLuminance(src: cv.Mat): cv.Mat {
  * Intersect two images using pixel-wise MIN operation
  * Mimics IntersectTwoImages() from SSAlgorithms.cpp:1302
  */
-function intersectFrames(img1: cv.Mat, img2: cv.Mat): cv.Mat {
+export function intersectFrames(img1: cv.Mat, img2: cv.Mat): cv.Mat {
   const result = new cv.Mat();
 
   // Pixel-wise minimum (intersection)
@@ -183,7 +183,7 @@ function intersectFrames(img1: cv.Mat, img2: cv.Mat): cv.Mat {
  * Intersect Y-channel (luminance) images
  * Mimics IntersectYImages() from SSAlgorithms.cpp
  */
-function intersectLuminance(img1: cv.Mat, img2: cv.Mat): cv.Mat {
+export function intersectLuminance(img1: cv.Mat, img2: cv.Mat): cv.Mat {
   const result = new cv.Mat();
 
   // Pixel-wise minimum for luminance channels
@@ -196,7 +196,7 @@ function intersectLuminance(img1: cv.Mat, img2: cv.Mat): cv.Mat {
  * Analyze image for text presence using connected component analysis
  * Mimics AnalyseImage() from SSAlgorithms.cpp:1316
  */
-function analyzeImageForText(
+export function analyzeImageForText(
   img: cv.Mat,
   params: SearchParams,
   imgWidth: number,
@@ -309,7 +309,7 @@ function cropToRegion(src: cv.Mat, region: BoundingBox): cv.Mat {
 /**
  * Convert OpenCV Mat to ImageData
  */
-function matToImageData(mat: cv.Mat): ImageData {
+export function matToImageData(mat: cv.Mat): ImageData {
   const canvas = document.createElement('canvas');
   canvas.width = mat.cols;
   canvas.height = mat.rows;

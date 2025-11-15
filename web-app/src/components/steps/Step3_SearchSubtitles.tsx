@@ -18,6 +18,10 @@ import {
   SearchProgress,
   DEFAULT_SEARCH_PARAMS,
 } from '../../algorithms/searchSubtitles';
+import {
+  searchSubtitlesWebCodecs,
+  isWebCodecsSupported,
+} from '../../algorithms/searchSubtitlesWebCodecs';
 import { SubtitleFrame } from '../../types/subtitle.types';
 
 export function Step3_SearchSubtitles() {
@@ -32,6 +36,7 @@ export function Step3_SearchSubtitles() {
   const [endTime, setEndTime] = useState(0);
   const [results, setResults] = useState<SubtitleFrame[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const useWebCodecs = isWebCodecsSupported();
   const shouldStopRef = useRef(false);
 
   // Get detected region from state (Step 2 result)
@@ -54,7 +59,7 @@ export function Step3_SearchSubtitles() {
 
   // Handle search button click
   const handleRunSearch = async () => {
-    if (!state.videoUrl || !detectedRegion || !videoRef.current) {
+    if (!state.videoUrl || !detectedRegion) {
       return;
     }
 
@@ -64,17 +69,40 @@ export function Step3_SearchSubtitles() {
     setProgress(null);
 
     try {
-      const subtitleFrames = await searchSubtitles(
-        videoRef.current,
-        detectedRegion,
-        startTime,
-        endTime,
-        searchParams,
-        (progressData) => {
-          setProgress(progressData);
-        },
-        () => shouldStopRef.current
-      );
+      let subtitleFrames: SubtitleFrame[];
+
+      // Try WebCodecs first (10-20x faster)
+      if (useWebCodecs && state.videoFile && isWebCodecsSupported()) {
+        console.log('Using WebCodecs API for fast frame decoding');
+        subtitleFrames = await searchSubtitlesWebCodecs(
+          state.videoFile,
+          detectedRegion,
+          startTime,
+          endTime,
+          searchParams,
+          (progressData) => {
+            setProgress(progressData);
+          },
+          () => shouldStopRef.current
+        );
+      } else {
+        // Fallback to seeking-based approach
+        console.log('Using video seeking for frame extraction');
+        if (!videoRef.current) {
+          throw new Error('Video element not available');
+        }
+        subtitleFrames = await searchSubtitles(
+          videoRef.current,
+          detectedRegion,
+          startTime,
+          endTime,
+          searchParams,
+          (progressData) => {
+            setProgress(progressData);
+          },
+          () => shouldStopRef.current
+        );
+      }
 
       setResults(subtitleFrames);
 
