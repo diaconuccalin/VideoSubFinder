@@ -48,6 +48,7 @@ export function Step2_AutoDetect() {
   useEffect(() => {
     if (state.videoUrl && videoRef.current) {
       const video = videoRef.current;
+      let animationFrameId: number | null = null;
 
       const updateCanvas = () => {
         if (canvasRef.current && video.readyState >= 2) {
@@ -59,66 +60,112 @@ export function Step2_AutoDetect() {
 
           // Draw overlay if region is detected
           if (detectedRegion) {
-            // Semi-transparent red overlay
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+            // Scale detection coordinates to canvas dimensions
+            const scaleX = canvas.width / video.videoWidth;
+            const scaleY = canvas.height / video.videoHeight;
+
+            const scaledRegion = {
+              xmin: detectedRegion.xmin * scaleX,
+              ymin: detectedRegion.ymin * scaleY,
+              xmax: detectedRegion.xmax * scaleX,
+              ymax: detectedRegion.ymax * scaleY,
+            };
+
+            // Semi-transparent green overlay
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
             ctx.fillRect(
-              detectedRegion.xmin,
-              detectedRegion.ymin,
-              detectedRegion.xmax - detectedRegion.xmin,
-              detectedRegion.ymax - detectedRegion.ymin
+              scaledRegion.xmin,
+              scaledRegion.ymin,
+              scaledRegion.xmax - scaledRegion.xmin,
+              scaledRegion.ymax - scaledRegion.ymin
             );
 
-            // Red border (4px thick)
-            ctx.strokeStyle = '#FF0000';
+            // Green border (4px thick)
+            ctx.strokeStyle = '#00FF00';
             ctx.lineWidth = 4;
             ctx.strokeRect(
-              detectedRegion.xmin,
-              detectedRegion.ymin,
-              detectedRegion.xmax - detectedRegion.xmin,
-              detectedRegion.ymax - detectedRegion.ymin
+              scaledRegion.xmin,
+              scaledRegion.ymin,
+              scaledRegion.xmax - scaledRegion.xmin,
+              scaledRegion.ymax - scaledRegion.ymin
             );
 
             // Corner markers
             const markerSize = 20;
-            ctx.fillStyle = '#FF0000';
+            ctx.fillStyle = '#00FF00';
 
             // Top-left
-            ctx.fillRect(detectedRegion.xmin - 2, detectedRegion.ymin - 2, markerSize, 4);
-            ctx.fillRect(detectedRegion.xmin - 2, detectedRegion.ymin - 2, 4, markerSize);
+            ctx.fillRect(scaledRegion.xmin - 2, scaledRegion.ymin - 2, markerSize, 4);
+            ctx.fillRect(scaledRegion.xmin - 2, scaledRegion.ymin - 2, 4, markerSize);
 
             // Top-right
-            ctx.fillRect(detectedRegion.xmax - markerSize + 2, detectedRegion.ymin - 2, markerSize, 4);
-            ctx.fillRect(detectedRegion.xmax - 2, detectedRegion.ymin - 2, 4, markerSize);
+            ctx.fillRect(scaledRegion.xmax - markerSize + 2, scaledRegion.ymin - 2, markerSize, 4);
+            ctx.fillRect(scaledRegion.xmax - 2, scaledRegion.ymin - 2, 4, markerSize);
 
             // Bottom-left
-            ctx.fillRect(detectedRegion.xmin - 2, detectedRegion.ymax - 2, markerSize, 4);
-            ctx.fillRect(detectedRegion.xmin - 2, detectedRegion.ymax - markerSize + 2, 4, markerSize);
+            ctx.fillRect(scaledRegion.xmin - 2, scaledRegion.ymax - 2, markerSize, 4);
+            ctx.fillRect(scaledRegion.xmin - 2, scaledRegion.ymax - markerSize + 2, 4, markerSize);
 
             // Bottom-right
-            ctx.fillRect(detectedRegion.xmax - markerSize + 2, detectedRegion.ymax - 2, markerSize, 4);
-            ctx.fillRect(detectedRegion.xmax - 2, detectedRegion.ymax - markerSize + 2, 4, markerSize);
+            ctx.fillRect(scaledRegion.xmax - markerSize + 2, scaledRegion.ymax - 2, markerSize, 4);
+            ctx.fillRect(scaledRegion.xmax - 2, scaledRegion.ymax - markerSize + 2, 4, markerSize);
           }
         }
       };
 
-      // Update canvas on every frame
-      const onTimeUpdate = () => {
-        setCurrentTime(video.currentTime);
+      // Use requestAnimationFrame for smooth updates when playing
+      const renderLoop = () => {
+        if (!video.paused && !video.ended) {
+          setCurrentTime(video.currentTime);
+          updateCanvas();
+          animationFrameId = requestAnimationFrame(renderLoop);
+        }
+      };
+
+      const onPlay = () => {
+        if (animationFrameId === null) {
+          animationFrameId = requestAnimationFrame(renderLoop);
+        }
+      };
+
+      const onPause = () => {
+        if (animationFrameId !== null) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
+        }
         updateCanvas();
+      };
+
+      const onTimeUpdate = () => {
+        if (video.paused) {
+          setCurrentTime(video.currentTime);
+        }
       };
 
       const onLoadedMetadata = () => {
         if (canvasRef.current) {
-          canvasRef.current.width = video.videoWidth;
-          canvasRef.current.height = video.videoHeight;
+          // Limit canvas resolution to 1280px width for better performance
+          const maxWidth = 1280;
+          const aspectRatio = video.videoHeight / video.videoWidth;
+
+          if (video.videoWidth > maxWidth) {
+            canvasRef.current.width = maxWidth;
+            canvasRef.current.height = maxWidth * aspectRatio;
+          } else {
+            canvasRef.current.width = video.videoWidth;
+            canvasRef.current.height = video.videoHeight;
+          }
         }
         updateCanvas();
       };
 
       const onSeeked = () => {
+        setCurrentTime(video.currentTime);
         updateCanvas();
       };
 
+      video.addEventListener('play', onPlay);
+      video.addEventListener('pause', onPause);
       video.addEventListener('timeupdate', onTimeUpdate);
       video.addEventListener('loadedmetadata', onLoadedMetadata);
       video.addEventListener('seeked', onSeeked);
@@ -128,6 +175,11 @@ export function Step2_AutoDetect() {
       }
 
       return () => {
+        if (animationFrameId !== null) {
+          cancelAnimationFrame(animationFrameId);
+        }
+        video.removeEventListener('play', onPlay);
+        video.removeEventListener('pause', onPause);
         video.removeEventListener('timeupdate', onTimeUpdate);
         video.removeEventListener('loadedmetadata', onLoadedMetadata);
         video.removeEventListener('seeked', onSeeked);
@@ -347,7 +399,7 @@ export function Step2_AutoDetect() {
           </div>
           {detectedRegion && (
             <p className="text-sm text-gray-600 mt-2">
-              🎯 The detected subtitle region is highlighted in red. Use the timeline to scrub through the video.
+              🎯 The detected subtitle region is highlighted in green. Use the timeline to scrub through the video.
             </p>
           )}
         </div>
