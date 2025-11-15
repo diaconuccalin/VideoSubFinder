@@ -9,6 +9,15 @@
 !*.cu
 !*.md
 !.gitignore
+# Web app files
+!*.ts
+!*.tsx
+!*.js
+!*.jsx
+!*.json
+!*.html
+!*.css
+!*.cjs
 # Or directories
 !*/
 
