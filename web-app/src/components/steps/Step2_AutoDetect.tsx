@@ -264,6 +264,27 @@ export function Step2_AutoDetect() {
       const time = parseFloat(e.target.value);
       videoRef.current.currentTime = time;
       setCurrentTime(time);
+
+      // Auto-pause when scrubbing
+      if (isPlaying) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    }
+  };
+
+  const handleSkipBackward = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 3);
+    }
+  };
+
+  const handleSkipForward = () => {
+    if (videoRef.current && state.videoMetadata) {
+      videoRef.current.currentTime = Math.min(
+        state.videoMetadata.duration,
+        videoRef.current.currentTime + 3
+      );
     }
   };
 
@@ -370,11 +391,24 @@ export function Step2_AutoDetect() {
                     </span>
                   </div>
 
-                  {/* Play/Pause Button */}
-                  <div className="flex items-center justify-center">
+                  {/* Playback Controls */}
+                  <div className="flex items-center justify-center space-x-4">
+                    {/* Skip Backward 3s */}
+                    <button
+                      onClick={handleSkipBackward}
+                      className="bg-submarine-ocean hover:bg-submarine-deep-blue text-white rounded-full p-3 transition-colors"
+                      title="Skip backward 3 seconds"
+                    >
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8zm-1.1 11h-.85v-3.26l-1.01.31v-.69l1.77-.63h.09V16zm4.28-1.76c0 .32-.03.6-.1.82s-.17.42-.29.57-.28.26-.45.33-.37.1-.59.1-.41-.03-.59-.1-.33-.18-.46-.33-.23-.34-.3-.57-.11-.5-.11-.82v-.74c0-.32.03-.6.1-.82s.17-.42.29-.57.28-.26.45-.33.37-.1.59-.1.41.03.59.1.33.18.46.33.23.34.3.57.11.5.11.82v.74zm-.85-.86c0-.19-.01-.35-.04-.48s-.07-.23-.12-.31-.11-.14-.19-.17-.16-.05-.25-.05-.18.02-.25.05-.14.09-.19.17-.09.18-.12.31-.04.29-.04.48v.97c0 .19.01.35.04.48s.07.24.12.32.11.14.19.17.16.05.25.05.18-.02.25-.05.14-.09.19-.17.09-.19.11-.32.04-.29.04-.48v-.97z" />
+                      </svg>
+                    </button>
+
+                    {/* Play/Pause Button */}
                     <button
                       onClick={handlePlayPause}
                       className="bg-submarine-ocean hover:bg-submarine-deep-blue text-white rounded-full p-3 transition-colors"
+                      title={isPlaying ? "Pause" : "Play"}
                     >
                       {isPlaying ? (
                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
@@ -393,6 +427,17 @@ export function Step2_AutoDetect() {
                           />
                         </svg>
                       )}
+                    </button>
+
+                    {/* Skip Forward 3s */}
+                    <button
+                      onClick={handleSkipForward}
+                      className="bg-submarine-ocean hover:bg-submarine-deep-blue text-white rounded-full p-3 transition-colors"
+                      title="Skip forward 3 seconds"
+                    >
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8zm-1.1 11h-.85v-3.26l-1.01.31v-.69l1.77-.63h.09V16zm4.28-1.76c0 .32-.03.6-.1.82s-.17.42-.29.57-.28.26-.45.33-.37.1-.59.1-.41-.03-.59-.1-.33-.18-.46-.33-.23-.34-.3-.57-.11-.5-.11-.82v-.74c0-.32.03-.6.1-.82s.17-.42.29-.57.28-.26.45-.33.37-.1.59-.1.41.03.59.1.33.18.46.33.23.34.3.57.11.5.11.82v.74zm-.85-.86c0-.19-.01-.35-.04-.48s-.07-.23-.12-.31-.11-.14-.19-.17-.16-.05-.25-.05-.18.02-.25.05-.14.09-.19.17-.09.18-.12.31-.04.29-.04.48v.97c0 .19.01.35.04.48s.07.24.12.32.11.14.19.17.16.05.25.05.18-.02.25-.05.14-.09.19-.17.09-.19.11-.32.04-.29.04-.48v-.97z" />
+                      </svg>
                     </button>
                   </div>
                 </div>
