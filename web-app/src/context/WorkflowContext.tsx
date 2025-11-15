@@ -141,7 +141,7 @@ interface WorkflowContextType {
   goToStep: (step: WorkflowStep) => void;
   completeCurrentStep: () => void;
   completeStep: (step: WorkflowStep) => void;
-  setDetectedRegion: (region: BoundingBox) => void;
+  setDetectedRegion: (region: BoundingBox | null) => void;
   setAdjustedRegion: (region: BoundingBox) => void;
 }
 
@@ -162,7 +162,7 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'COMPLETE_STEP', payload: step });
   };
 
-  const setDetectedRegion = (region: BoundingBox) => {
+  const setDetectedRegion = (region: BoundingBox | null) => {
     dispatch({ type: 'SET_DETECTED_REGION', payload: region });
   };
 

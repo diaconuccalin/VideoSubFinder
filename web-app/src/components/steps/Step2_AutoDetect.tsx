@@ -249,6 +249,8 @@ export function Step2_AutoDetect() {
 
       if (result.bounds) {
         setDetectedRegionState(result.bounds);
+        // Save to global state immediately so it persists when switching steps
+        setDetectedRegion(result.bounds);
       } else {
         alert('No subtitle regions detected. The video may not contain hardcoded subtitles, or they may be in an unusual position.');
       }
@@ -303,6 +305,8 @@ export function Step2_AutoDetect() {
   const handleRedetect = () => {
     setDetectedRegionState(null);
     setDetectionStats(null);
+    // Clear global state so new detection will run
+    setDetectedRegion(null);
     runAutoDetection();
   };
 
