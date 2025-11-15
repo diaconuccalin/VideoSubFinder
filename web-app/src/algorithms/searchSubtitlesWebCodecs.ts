@@ -272,6 +272,16 @@ export async function searchSubtitlesWebCodecs(
         regionWidth = detectedRegion.xmax - detectedRegion.xmin;
         regionHeight = detectedRegion.ymax - detectedRegion.ymin;
 
+        console.log('WebCodecs config:', {
+          codec: config.codec,
+          width: videoWidth,
+          height: videoHeight,
+          regionWidth,
+          regionHeight,
+          startTime,
+          endTime,
+        });
+
         // Configure decoder
         decoder!.configure(config);
         configReceived = true;
@@ -281,6 +291,8 @@ export async function searchSubtitlesWebCodecs(
         ctx = canvas.getContext('2d')!;
       }
     );
+
+    console.log(`Collected ${chunks.length} chunks in time range ${startTime}-${endTime}s`);
 
     if (!configReceived) {
       throw new Error('Failed to configure video decoder');
@@ -298,6 +310,7 @@ export async function searchSubtitlesWebCodecs(
 
     // Process all decoded frames
     const totalFrames = frameQueue.length;
+    console.log(`Decoded ${totalFrames} frames, starting processing...`);
 
     for (let i = 0; i < frameQueue.length; i++) {
       if (shouldStop && shouldStop()) {
@@ -362,6 +375,10 @@ export async function searchSubtitlesWebCodecs(
           regionWidth,
           regionHeight
         );
+
+        if (i % 50 === 0) {
+          console.log(`Frame ${i}/${totalFrames}: hasText=${hasText}, results=${results.length}`);
+        }
 
         if (hasText) {
           // Text detected - check if this is a new subtitle or continuation
@@ -455,8 +472,10 @@ export async function searchSubtitlesWebCodecs(
       });
     }
 
+    console.log(`WebCodecs search complete: Found ${results.length} subtitle sequences`);
     return results;
   } catch (error) {
+    console.error('WebCodecs search error:', error);
     // Clean up on error
     if (decoder && decoder.state !== 'closed') {
       decoder.close();
