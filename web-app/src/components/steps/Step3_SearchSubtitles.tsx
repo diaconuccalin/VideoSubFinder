@@ -202,41 +202,46 @@ export function Step3_SearchSubtitles() {
 
   if (!state.videoUrl) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-        <p className="text-gray-600 mb-4">No video loaded. Please select a video first.</p>
-        <button
-          onClick={() => goToStep('video-select')}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Go to Video Selection
-        </button>
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+          <p className="text-gray-600 mb-4">No video loaded. Please select a video first.</p>
+          <button
+            onClick={() => goToStep('video-select')}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Go to Video Selection
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!detectedRegion) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-        <p className="text-gray-600 mb-4">No subtitle region detected. Please detect bounds first.</p>
-        <button
-          onClick={() => goToStep('auto-detect')}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Go to Detect Bounds
-        </button>
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+          <p className="text-gray-600 mb-4">No subtitle region detected. Please detect bounds first.</p>
+          <button
+            onClick={() => goToStep('auto-detect')}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Go to Detect Bounds
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-2">Search Subtitles</h2>
-        <p className="text-gray-600">
-          Automatically search and extract subtitle frames from the video within the detected bounds.
-        </p>
-      </div>
+    <div className="max-w-7xl mx-auto px-6">
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-2">Search Subtitles</h2>
+          <p className="text-gray-600">
+            Automatically search and extract subtitle frames from the video within the detected bounds.
+          </p>
+        </div>
 
       {/* Video Preview */}
       <div className="mb-6">
@@ -569,6 +574,7 @@ export function Step3_SearchSubtitles() {
             Continue →
           </button>
         )}
+      </div>
       </div>
     </div>
   );
