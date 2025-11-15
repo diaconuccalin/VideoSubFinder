@@ -506,9 +506,8 @@ export function Step3_SearchSubtitles() {
                       }}
                       className="w-full h-auto border border-gray-200 rounded"
                     />
-                    <div className="text-xs text-gray-700 mt-2 space-y-0.5">
-                      <div className="font-medium">Start: {formatTimeWithMs(frame.startTime)}</div>
-                      <div className="font-medium">End: {formatTimeWithMs(frame.endTime)}</div>
+                    <div className="text-xs text-gray-700 mt-2 text-center">
+                      <div className="font-medium">{formatTimeWithMs(frame.startTime)} - {formatTimeWithMs(frame.endTime)}</div>
                     </div>
                   </div>
                 ))}
