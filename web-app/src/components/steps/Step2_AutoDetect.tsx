@@ -1,9 +1,10 @@
 /**
- * Step 2: Auto-Detect Subtitle Position
+ * Step 2: Auto-Detect and Adjust Subtitle Position
  *
  * Automatically detects subtitle regions using the AutoDetectSubtitleBounds algorithm
  * from the YellowSubtitles branch C++ codebase (MainFrm.cpp lines 921-1431).
  *
+ * After detection, allows manual adjustment by dragging and resizing the detected rectangle.
  * Uses OpenCV.js for contour-based detection matching the exact C++ implementation.
  */
 
@@ -15,6 +16,8 @@ import {
   DEFAULT_AUTO_DETECT_PARAMS,
 } from '../../algorithms/autoDetectSubtitleBounds';
 import { BoundingBox } from '../../types/video.types';
+
+type InteractionMode = 'none' | 'move' | 'resize-tl' | 'resize-tr' | 'resize-bl' | 'resize-br' | 'resize-t' | 'resize-b' | 'resize-l' | 'resize-r';
 
 export function Step2_AutoDetect() {
   const { state, setDetectedRegion, completeStep, goToStep } = useWorkflow();
@@ -33,6 +36,12 @@ export function Step2_AutoDetect() {
   } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+
+  // Interactive rectangle adjustment
+  const [interactionMode, setInteractionMode] = useState<InteractionMode>('none');
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [originalRegion, setOriginalRegion] = useState<BoundingBox | null>(null);
+  const [hoverMode, setHoverMode] = useState<InteractionMode>('none');
 
   // Detection parameters (can be adjusted by user)
   const [params, setParams] = useState<AutoDetectParams>(DEFAULT_AUTO_DETECT_PARAMS);
@@ -210,6 +219,163 @@ export function Step2_AutoDetect() {
     }
   }, [state.videoUrl, detectedRegion]);
 
+  // Helper function to get interaction mode based on mouse position
+  const getInteractionMode = (mouseX: number, mouseY: number, region: BoundingBox, canvas: HTMLCanvasElement): InteractionMode => {
+    if (!videoRef.current) return 'none';
+
+    const scaleX = canvas.width / videoRef.current.videoWidth;
+    const scaleY = canvas.height / videoRef.current.videoHeight;
+
+    const scaledRegion = {
+      xmin: region.xmin * scaleX,
+      ymin: region.ymin * scaleY,
+      xmax: region.xmax * scaleX,
+      ymax: region.ymax * scaleY,
+    };
+
+    const handleSize = 12;
+    const edgeThreshold = 8;
+
+    // Check corners first (priority)
+    if (Math.abs(mouseX - scaledRegion.xmin) < handleSize && Math.abs(mouseY - scaledRegion.ymin) < handleSize) return 'resize-tl';
+    if (Math.abs(mouseX - scaledRegion.xmax) < handleSize && Math.abs(mouseY - scaledRegion.ymin) < handleSize) return 'resize-tr';
+    if (Math.abs(mouseX - scaledRegion.xmin) < handleSize && Math.abs(mouseY - scaledRegion.ymax) < handleSize) return 'resize-bl';
+    if (Math.abs(mouseX - scaledRegion.xmax) < handleSize && Math.abs(mouseY - scaledRegion.ymax) < handleSize) return 'resize-br';
+
+    // Check edges
+    if (Math.abs(mouseY - scaledRegion.ymin) < edgeThreshold && mouseX > scaledRegion.xmin && mouseX < scaledRegion.xmax) return 'resize-t';
+    if (Math.abs(mouseY - scaledRegion.ymax) < edgeThreshold && mouseX > scaledRegion.xmin && mouseX < scaledRegion.xmax) return 'resize-b';
+    if (Math.abs(mouseX - scaledRegion.xmin) < edgeThreshold && mouseY > scaledRegion.ymin && mouseY < scaledRegion.ymax) return 'resize-l';
+    if (Math.abs(mouseX - scaledRegion.xmax) < edgeThreshold && mouseY > scaledRegion.ymin && mouseY < scaledRegion.ymax) return 'resize-r';
+
+    // Check if inside rectangle (for moving)
+    if (mouseX > scaledRegion.xmin && mouseX < scaledRegion.xmax && mouseY > scaledRegion.ymin && mouseY < scaledRegion.ymax) {
+      return 'move';
+    }
+
+    return 'none';
+  };
+
+  // Get cursor style based on interaction mode
+  const getCursor = (mode: InteractionMode): string => {
+    switch (mode) {
+      case 'move': return 'move';
+      case 'resize-tl': case 'resize-br': return 'nwse-resize';
+      case 'resize-tr': case 'resize-bl': return 'nesw-resize';
+      case 'resize-t': case 'resize-b': return 'ns-resize';
+      case 'resize-l': case 'resize-r': return 'ew-resize';
+      default: return 'default';
+    }
+  };
+
+  // Mouse event handlers
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!detectedRegion || !canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const mode = getInteractionMode(mouseX, mouseY, detectedRegion, canvasRef.current);
+
+    if (mode !== 'none') {
+      setInteractionMode(mode);
+      setDragStart({ x: mouseX, y: mouseY });
+      setOriginalRegion({ ...detectedRegion });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Update cursor based on hover
+    if (detectedRegion && interactionMode === 'none') {
+      const mode = getInteractionMode(mouseX, mouseY, detectedRegion, canvasRef.current);
+      setHoverMode(mode);
+    }
+
+    // Handle dragging/resizing
+    if (interactionMode !== 'none' && dragStart && originalRegion && videoRef.current) {
+      const deltaX = mouseX - dragStart.x;
+      const deltaY = mouseY - dragStart.y;
+
+      const scaleX = videoRef.current.videoWidth / canvasRef.current.width;
+      const scaleY = videoRef.current.videoHeight / canvasRef.current.height;
+
+      const scaledDeltaX = deltaX * scaleX;
+      const scaledDeltaY = deltaY * scaleY;
+
+      let newRegion = { ...originalRegion };
+
+      switch (interactionMode) {
+        case 'move':
+          newRegion = {
+            xmin: originalRegion.xmin + scaledDeltaX,
+            ymin: originalRegion.ymin + scaledDeltaY,
+            xmax: originalRegion.xmax + scaledDeltaX,
+            ymax: originalRegion.ymax + scaledDeltaY,
+          };
+          break;
+        case 'resize-tl':
+          newRegion.xmin = originalRegion.xmin + scaledDeltaX;
+          newRegion.ymin = originalRegion.ymin + scaledDeltaY;
+          break;
+        case 'resize-tr':
+          newRegion.xmax = originalRegion.xmax + scaledDeltaX;
+          newRegion.ymin = originalRegion.ymin + scaledDeltaY;
+          break;
+        case 'resize-bl':
+          newRegion.xmin = originalRegion.xmin + scaledDeltaX;
+          newRegion.ymax = originalRegion.ymax + scaledDeltaY;
+          break;
+        case 'resize-br':
+          newRegion.xmax = originalRegion.xmax + scaledDeltaX;
+          newRegion.ymax = originalRegion.ymax + scaledDeltaY;
+          break;
+        case 'resize-t':
+          newRegion.ymin = originalRegion.ymin + scaledDeltaY;
+          break;
+        case 'resize-b':
+          newRegion.ymax = originalRegion.ymax + scaledDeltaY;
+          break;
+        case 'resize-l':
+          newRegion.xmin = originalRegion.xmin + scaledDeltaX;
+          break;
+        case 'resize-r':
+          newRegion.xmax = originalRegion.xmax + scaledDeltaX;
+          break;
+      }
+
+      // Clamp to video bounds and ensure minimum size
+      const minSize = 20;
+      newRegion.xmin = Math.max(0, Math.min(newRegion.xmin, videoRef.current.videoWidth - minSize));
+      newRegion.ymin = Math.max(0, Math.min(newRegion.ymin, videoRef.current.videoHeight - minSize));
+      newRegion.xmax = Math.min(videoRef.current.videoWidth, Math.max(newRegion.xmax, newRegion.xmin + minSize));
+      newRegion.ymax = Math.min(videoRef.current.videoHeight, Math.max(newRegion.ymax, newRegion.ymin + minSize));
+
+      setDetectedRegionState(newRegion);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (interactionMode !== 'none' && detectedRegion) {
+      // Save adjusted region to global state
+      setDetectedRegion(detectedRegion);
+    }
+    setInteractionMode('none');
+    setDragStart(null);
+    setOriginalRegion(null);
+  };
+
+  const handleMouseLeave = () => {
+    setHoverMode('none');
+    // Don't cancel drag if user leaves canvas while dragging
+  };
+
   const runAutoDetection = async () => {
     if (!state.videoUrl || !state.videoMetadata) {
       return;
@@ -314,7 +480,9 @@ export function Step2_AutoDetect() {
     if (detectedRegion) {
       setDetectedRegion(detectedRegion);
       completeStep('auto-detect');
-      goToStep('manual-adjust');
+      // Skip manual-adjust step since it's now integrated here
+      completeStep('manual-adjust');
+      goToStep('search-subtitles');
     }
   };
 
@@ -344,7 +512,7 @@ export function Step2_AutoDetect() {
     <div className="max-w-7xl mx-auto px-6">
       <div className="card">
         <h2 className="text-2xl font-bold text-submarine-deep-blue mb-4">
-          Auto-Detect Subtitle Position
+          Detect & Adjust Subtitle Bounds
         </h2>
 
         {/* Video Preview with Overlay */}
@@ -380,7 +548,15 @@ export function Step2_AutoDetect() {
                     className="hidden"
                     crossOrigin="anonymous"
                   />
-                  <canvas ref={canvasRef} className="block max-w-full max-h-full" />
+                  <canvas
+                    ref={canvasRef}
+                    className="block max-w-full max-h-full"
+                    style={{ cursor: getCursor(hoverMode) }}
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseLeave}
+                  />
                 </div>
 
                 {/* Video Controls */}
@@ -466,7 +642,7 @@ export function Step2_AutoDetect() {
           </div>
           {detectedRegion && (
             <p className="text-sm text-gray-600 mt-2">
-              🎯 The detected subtitle region is highlighted in green. Use the timeline to scrub through the video.
+              🎯 The detected subtitle region is shown in green. Drag to move it, or drag the edges/corners to resize. Use the timeline to scrub through the video.
             </p>
           )}
         </div>
@@ -624,7 +800,7 @@ export function Step2_AutoDetect() {
           </button>
 
           <button onClick={handleContinue} disabled={!detectedRegion} className="btn-primary">
-            Continue to Manual Adjustment →
+            Continue to Search Subtitles →
           </button>
         </div>
       </div>
