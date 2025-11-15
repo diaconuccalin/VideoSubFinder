@@ -144,17 +144,28 @@ export function Step2_AutoDetect() {
 
       const onLoadedMetadata = () => {
         if (canvasRef.current) {
-          // Limit canvas resolution to 1280px width for better performance
+          // Limit canvas resolution for better performance and fit within container
           const maxWidth = 1280;
-          const aspectRatio = video.videoHeight / video.videoWidth;
+          const maxHeight = 500;
+          const aspectRatio = video.videoWidth / video.videoHeight;
 
-          if (video.videoWidth > maxWidth) {
-            canvasRef.current.width = maxWidth;
-            canvasRef.current.height = maxWidth * aspectRatio;
-          } else {
-            canvasRef.current.width = video.videoWidth;
-            canvasRef.current.height = video.videoHeight;
+          let canvasWidth = video.videoWidth;
+          let canvasHeight = video.videoHeight;
+
+          // Scale down if width exceeds max
+          if (canvasWidth > maxWidth) {
+            canvasWidth = maxWidth;
+            canvasHeight = maxWidth / aspectRatio;
           }
+
+          // Scale down if height exceeds max
+          if (canvasHeight > maxHeight) {
+            canvasHeight = maxHeight;
+            canvasWidth = maxHeight * aspectRatio;
+          }
+
+          canvasRef.current.width = canvasWidth;
+          canvasRef.current.height = canvasHeight;
         }
         updateCanvas();
       };
@@ -325,7 +336,7 @@ export function Step2_AutoDetect() {
             ) : state.videoUrl ? (
               <div>
                 {/* Video and Canvas Container */}
-                <div className="relative overflow-auto max-h-[400px]">
+                <div className="relative overflow-hidden max-h-[500px] flex items-center justify-center">
                   <video
                     ref={videoRef}
                     src={state.videoUrl}
