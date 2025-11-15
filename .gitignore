@@ -18,6 +18,8 @@
 !*.html
 !*.css
 !*.cjs
+!*.yml
+!*.yaml
 # Or directories
 !*/
 
