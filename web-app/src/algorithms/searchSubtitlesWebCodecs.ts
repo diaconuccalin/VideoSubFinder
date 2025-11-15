@@ -78,11 +78,15 @@ async function demuxMP4File(
         if (stsd && stsd.entries && stsd.entries[0]) {
           const entry = stsd.entries[0] as any;
           if (entry.avcC) {
-            description = new Uint8Array(entry.avcC.length);
-            entry.avcC.copy(description);
+            // avcC is already a Uint8Array, just use it directly
+            description = entry.avcC instanceof Uint8Array
+              ? entry.avcC
+              : new Uint8Array(entry.avcC);
           } else if (entry.hvcC) {
-            description = new Uint8Array(entry.hvcC.length);
-            entry.hvcC.copy(description);
+            // hvcC is already a Uint8Array, just use it directly
+            description = entry.hvcC instanceof Uint8Array
+              ? entry.hvcC
+              : new Uint8Array(entry.hvcC);
           }
         }
       }
