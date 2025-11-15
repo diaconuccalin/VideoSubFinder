@@ -168,6 +168,15 @@ export function Step3_SearchSubtitles() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  // Format time with milliseconds as HH:MM:SS.mmm
+  const formatTimeWithMs = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    const ms = Math.floor((seconds % 1) * 1000);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+  };
+
   // Format duration as readable string
   const formatDuration = (ms: number): string => {
     const seconds = Math.floor(ms / 1000);
@@ -472,8 +481,8 @@ export function Step3_SearchSubtitles() {
             <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded mb-4">
               <p className="text-sm text-green-800">
                 <strong>Success!</strong> Detected {results.length} subtitle frames from{' '}
-                {formatTime(results[0]?.startTime || 0)} to{' '}
-                {formatTime(results[results.length - 1]?.endTime || 0)}.
+                {formatTimeWithMs(results[0]?.startTime || 0)} to{' '}
+                {formatTimeWithMs(results[results.length - 1]?.endTime || 0)}.
               </p>
             </div>
 
@@ -497,8 +506,9 @@ export function Step3_SearchSubtitles() {
                       }}
                       className="w-full h-auto border border-gray-200 rounded"
                     />
-                    <div className="text-xs text-gray-600 mt-1 text-center">
-                      {formatTime(frame.startTime)}
+                    <div className="text-xs text-gray-700 mt-2 space-y-0.5">
+                      <div className="font-medium">Start: {formatTimeWithMs(frame.startTime)}</div>
+                      <div className="font-medium">End: {formatTimeWithMs(frame.endTime)}</div>
                     </div>
                   </div>
                 ))}
