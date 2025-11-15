@@ -299,11 +299,6 @@ export function Step2_AutoDetect() {
           Auto-Detect Subtitle Position
         </h2>
 
-        <p className="text-gray-700 mb-6">
-          The algorithm will automatically scan the video to detect regions where subtitles appear.
-          This uses OpenCV.js with the exact algorithm from the C++ codebase (AutoDetectSubtitleBounds).
-        </p>
-
         {/* Video Preview with Overlay */}
         <div className="mb-6">
           <div className="border-2 border-submarine-sky rounded-lg bg-gray-900">
@@ -330,7 +325,7 @@ export function Step2_AutoDetect() {
             ) : state.videoUrl ? (
               <div>
                 {/* Video and Canvas Container */}
-                <div className="relative overflow-auto max-h-[600px]">
+                <div className="relative overflow-auto max-h-[400px]">
                   <video
                     ref={videoRef}
                     src={state.videoUrl}
