@@ -219,8 +219,14 @@ export function Step3_SearchSubtitles() {
         completeStep('search-subtitles');
       }
 
-      // Clear the paused position on successful completion
-      setLastPausedPosition(null);
+      // Clear the paused position only if search completed successfully (not stopped early)
+      // If shouldStopRef is true, the search was stopped (paused), so keep the position
+      if (!shouldStopRef.current) {
+        console.log('Search completed successfully, clearing paused position');
+        setLastPausedPosition(null);
+      } else {
+        console.log('Search was stopped/paused, keeping paused position for resume');
+      }
     } catch (error) {
       console.error('Search error:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
