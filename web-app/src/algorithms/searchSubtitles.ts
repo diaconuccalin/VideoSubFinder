@@ -456,6 +456,21 @@ export async function searchSubtitles(
     // Main loop: jump forward by ddl (DL/2) frames
     while (currentTime < endTime) {
       if (shouldStop && shouldStop()) {
+        console.log('Seek-based search stopped at', currentTime);
+        // Report final position before stopping
+        if (onProgress) {
+          const elapsed = performance.now() - searchStartTime;
+          const percentage = ((currentTime - startTime) / totalDuration) * 100;
+          onProgress({
+            currentTime,
+            totalTime: totalDuration,
+            percentage: Math.min(100, percentage),
+            framesProcessed,
+            subtitlesFound: results.length,
+            elapsedTime: elapsed,
+            estimatedTimeRemaining: 0,
+          });
+        }
         break;
       }
 

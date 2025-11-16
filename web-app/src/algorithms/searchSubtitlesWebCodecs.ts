@@ -284,9 +284,23 @@ export async function searchSubtitlesWebCodecs(
       const checkInterval = setInterval(() => {
         // Check shouldStop callback directly (in case requestVideoFrameCallback is throttled)
         if (shouldStop && shouldStop() && !stopped) {
-          console.log('Detected stop signal - pausing video');
+          console.log('Detected stop signal - pausing video at', video.currentTime);
           stopped = true;
           video.pause();
+
+          // Report final position before stopping
+          if (onProgress) {
+            const elapsed = performance.now() - startTimeMs;
+            onProgress({
+              currentTime: video.currentTime,
+              totalTime: endTime - startTime,
+              percentage: ((video.currentTime - startTime) / (endTime - startTime)) * 100,
+              framesProcessed: totalFramesProcessed,
+              subtitlesFound: results.length,
+              elapsedTime: elapsed,
+              estimatedTimeRemaining: 0,
+            });
+          }
         }
 
         if (stopped || video.paused || video.ended) {
