@@ -192,7 +192,7 @@ export function Step5_ManualCleanup() {
                     >
                       {/* Checkmark Overlay */}
                       {isSelected && (
-                        <div className="absolute top-3 left-3 bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg shadow-lg z-10">
+                        <div className="absolute top-3 left-3 bg-blue-600 text-white w-8 h-8 rounded-md flex items-center justify-center font-bold text-lg shadow-lg z-10">
                           ✓
                         </div>
                       )}
