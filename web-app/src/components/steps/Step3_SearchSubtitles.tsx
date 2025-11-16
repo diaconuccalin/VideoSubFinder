@@ -117,6 +117,8 @@ export function Step3_SearchSubtitles() {
         ? `Resuming search from ${effectiveStartTime.toFixed(2)}s (${existingResults.length} existing results)`
         : `Starting new search from ${effectiveStartTime.toFixed(2)}s`
     );
+    console.log('Current results state:', results.length, results);
+    console.log('Saved existingResults:', existingResults.length, existingResults);
 
     setIsSearching(true);
     shouldStopRef.current = false;
@@ -201,6 +203,8 @@ export function Step3_SearchSubtitles() {
 
       // Merge with existing results if resuming (use saved existingResults, not state)
       const finalResults = isResuming ? [...existingResults, ...subtitleFrames] : subtitleFrames;
+      console.log(`Setting results: isResuming=${isResuming}, existingResults=${existingResults.length}, newResults=${subtitleFrames.length}, total=${finalResults.length}`);
+      console.log('Final results:', finalResults);
       setResults(finalResults);
 
       // Save to global state

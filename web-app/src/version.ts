@@ -5,5 +5,5 @@
  * Format: v{major}.{minor}.{patch}-{commit-count}
  */
 
-export const APP_VERSION = 'v0.1.0-build.11';
+export const APP_VERSION = 'v0.1.0-build.12-debug';
 export const BUILD_DATE = '2025-01-16';
