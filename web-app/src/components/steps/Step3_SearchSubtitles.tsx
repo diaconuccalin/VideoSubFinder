@@ -105,6 +105,7 @@ export function Step3_SearchSubtitles() {
     }
 
     // Determine if we're resuming from a paused position
+    console.log('Resume check:', { isPausedByTabSwitch, lastPausedPosition, startTime, endTime });
     const isResuming = isPausedByTabSwitch && lastPausedPosition !== null;
     const effectiveStartTime = isResuming ? lastPausedPosition : startTime;
 
@@ -286,6 +287,7 @@ export function Step3_SearchSubtitles() {
 
   // Handle start time input change
   const handleStartTimeChange = (value: string) => {
+    console.log('handleStartTimeChange called:', value, 'isPausedByTabSwitch:', isPausedByTabSwitch);
     setStartTimeInput(value);
     const parsed = parseTime(value);
     if (parsed !== null) {
@@ -295,6 +297,7 @@ export function Step3_SearchSubtitles() {
 
       // Clear paused state if user manually changes search parameters
       if (isPausedByTabSwitch) {
+        console.log('Clearing paused state because start time was changed to:', clampedTime);
         setIsPausedByTabSwitch(false);
         setLastPausedPosition(null);
         wasPausedRef.current = false;
