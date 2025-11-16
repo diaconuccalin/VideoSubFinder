@@ -410,7 +410,7 @@ export function Step3_SearchSubtitles() {
       />
 
       {/* Search Controls */}
-      {!isSearching && results.length === 0 && (
+      {!isSearching && (results.length === 0 || isPausedByTabSwitch) && (
         <div className="mb-6">
           <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Search Configuration</h3>
@@ -644,7 +644,7 @@ export function Step3_SearchSubtitles() {
       )}
 
       {/* Results Display */}
-      {!isSearching && results.length > 0 && (
+      {!isSearching && results.length > 0 && !isPausedByTabSwitch && (
         <div className="mb-6 flex-1">
           <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 h-full flex flex-col">
             <div className="flex items-center justify-between mb-4">
@@ -724,7 +724,7 @@ export function Step3_SearchSubtitles() {
         >
           ← Back
         </button>
-        {results.length > 0 && (
+        {results.length > 0 && !isPausedByTabSwitch && (
           <button
             onClick={handleContinue}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
