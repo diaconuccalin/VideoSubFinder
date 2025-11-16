@@ -36,8 +36,10 @@ export function Step3_SearchSubtitles() {
   const [endTime, setEndTime] = useState(0);
   const [results, setResults] = useState<SubtitleFrame[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isPausedByTabSwitch, setIsPausedByTabSwitch] = useState(false);
   const useWebCodecs = isWebCodecsSupported();
   const shouldStopRef = useRef(false);
+  const wasPausedRef = useRef(false);
 
   // Get detected region from state (Step 2 result)
   const detectedRegion = state.detectedRegion || state.adjustedRegion;
@@ -57,6 +59,35 @@ export function Step3_SearchSubtitles() {
     }
   }, [state.subtitleFrames]);
 
+  // Page Visibility API: Pause search when tab is hidden
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is now hidden
+        if (isSearching && !wasPausedRef.current) {
+          console.log('Tab hidden - pausing subtitle search');
+          setIsPausedByTabSwitch(true);
+          shouldStopRef.current = true;
+          wasPausedRef.current = true;
+        }
+      } else {
+        // Tab is now visible
+        if (wasPausedRef.current) {
+          console.log('Tab visible again - search was paused');
+          setIsPausedByTabSwitch(false);
+          wasPausedRef.current = false;
+          // Note: User needs to manually restart the search
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isSearching]);
+
   // Handle search button click
   const handleRunSearch = async () => {
     if (!state.videoUrl || !detectedRegion) {
@@ -65,6 +96,8 @@ export function Step3_SearchSubtitles() {
 
     setIsSearching(true);
     shouldStopRef.current = false;
+    setIsPausedByTabSwitch(false);
+    wasPausedRef.current = false;
     setResults([]);
     setProgress(null);
 
@@ -234,6 +267,48 @@ export function Step3_SearchSubtitles() {
             Automatically search and extract subtitle frames from the video within the detected bounds.
           </p>
         </div>
+
+        {/* Tab Visibility Warning */}
+        {isSearching && (
+          <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-semibold text-yellow-800">
+                  ⚠️ Keep this tab active during subtitle search
+                </p>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Switching to another tab or window may pause or slow down the search process. For best results, please keep this tab in focus until the search completes.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Paused by Tab Switch Alert */}
+        {isPausedByTabSwitch && (
+          <div className="mb-4 bg-orange-50 border-l-4 border-orange-400 p-4 rounded">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-semibold text-orange-800">
+                  🔔 Search paused - tab was switched
+                </p>
+                <p className="text-sm text-orange-700 mt-1">
+                  The subtitle search was automatically paused because you switched to another tab. Click "Run Search" again to continue from where it left off.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
       {/* Hidden video element for frame extraction */}
       <video
