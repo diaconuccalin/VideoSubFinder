@@ -19,6 +19,13 @@ export interface ClearedImage {
   timestamp: number;        // Time in seconds
 }
 
+export interface OcrResult {
+  id: string;               // Matches ClearedImage id
+  text: string;             // Recognized text
+  timestamp: number;        // Time in seconds
+  confidence: number;       // OCR confidence (0-100)
+}
+
 export interface SubtitleEntry {
   index: number;            // Subtitle number (1, 2, 3, ...)
   startTime: number;        // Start time in seconds

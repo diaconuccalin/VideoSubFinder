@@ -24,6 +24,7 @@ const initialState: WorkflowState = {
   isClearing: false,
   acceptedFrames: new Set(),
   rejectedFrames: new Set(),
+  ocrResults: [],
   ocrProgress: 0,
   isProcessingOCR: false,
   subtitleContent: null,
@@ -103,6 +104,9 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
         rejectedFrames: new Set(state.rejectedFrames).add(action.payload),
         acceptedFrames: new Set([...state.acceptedFrames].filter(id => id !== action.payload)),
       };
+
+    case 'SET_OCR_RESULTS':
+      return { ...state, ocrResults: action.payload };
 
     case 'UPDATE_OCR_PROGRESS':
       return { ...state, ocrProgress: action.payload };

@@ -90,8 +90,7 @@ export function Step5_ManualCleanup() {
     }
 
     completeStep('manual-cleanup');
-    // TODO: Add next step navigation
-    // goToStep('ocr');
+    goToStep('ocr');
   };
 
   // Format time with milliseconds

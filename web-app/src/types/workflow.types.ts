@@ -3,7 +3,7 @@
  */
 
 import { VideoMetadata, BoundingBox } from './video.types';
-import { SubtitleFrame, DetectionSettings, ClusteringSettings, OCRSettings, ClearedImage } from './subtitle.types';
+import { SubtitleFrame, DetectionSettings, ClusteringSettings, OCRSettings, ClearedImage, OcrResult } from './subtitle.types';
 
 export type WorkflowStep =
   | 'video-select'
@@ -46,6 +46,7 @@ export interface WorkflowState {
   rejectedFrames: Set<string>;
 
   // Step 7: OCR
+  ocrResults: OcrResult[];
   ocrProgress: number;
   isProcessingOCR: boolean;
 
