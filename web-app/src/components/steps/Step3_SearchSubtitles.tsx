@@ -278,6 +278,13 @@ export function Step3_SearchSubtitles() {
       const clampedTime = Math.max(0, Math.min(parsed, endTime));
       setStartTime(clampedTime);
       setIsStartTimeValid(true);
+
+      // Clear paused state if user manually changes search parameters
+      if (isPausedByTabSwitch) {
+        setIsPausedByTabSwitch(false);
+        setLastPausedPosition(null);
+        wasPausedRef.current = false;
+      }
     } else {
       setIsStartTimeValid(false);
     }
@@ -292,6 +299,13 @@ export function Step3_SearchSubtitles() {
       const clampedTime = Math.max(startTime, Math.min(parsed, maxDuration));
       setEndTime(clampedTime);
       setIsEndTimeValid(true);
+
+      // Clear paused state if user manually changes search parameters
+      if (isPausedByTabSwitch) {
+        setIsPausedByTabSwitch(false);
+        setLastPausedPosition(null);
+        wasPausedRef.current = false;
+      }
     } else {
       setIsEndTimeValid(false);
     }
@@ -309,6 +323,17 @@ export function Step3_SearchSubtitles() {
       return `${minutes}m ${seconds % 60}s`;
     } else {
       return `${seconds}s`;
+    }
+  };
+
+  // Helper to update search params and clear paused state
+  const updateSearchParams = (newParams: SearchParams) => {
+    setSearchParams(newParams);
+    // Clear paused state when advanced parameters change
+    if (isPausedByTabSwitch) {
+      setIsPausedByTabSwitch(false);
+      setLastPausedPosition(null);
+      wasPausedRef.current = false;
     }
   };
 
@@ -479,7 +504,7 @@ export function Step3_SearchSubtitles() {
                       type="number"
                       value={searchParams.frameSequenceLength}
                       onChange={(e) =>
-                        setSearchParams({
+                        updateSearchParams({
                           ...searchParams,
                           frameSequenceLength: Math.max(2, parseInt(e.target.value) || 3),
                         })
@@ -499,7 +524,7 @@ export function Step3_SearchSubtitles() {
                       type="number"
                       value={searchParams.textPercentageThreshold}
                       onChange={(e) =>
-                        setSearchParams({
+                        updateSearchParams({
                           ...searchParams,
                           textPercentageThreshold: Math.max(0, Math.min(1, parseFloat(e.target.value) || 0.25)),
                         })
@@ -520,7 +545,7 @@ export function Step3_SearchSubtitles() {
                       type="number"
                       value={searchParams.minTextWidth}
                       onChange={(e) =>
-                        setSearchParams({
+                        updateSearchParams({
                           ...searchParams,
                           minTextWidth: Math.max(10, parseInt(e.target.value) || 40),
                         })
@@ -540,7 +565,7 @@ export function Step3_SearchSubtitles() {
                       type="number"
                       value={searchParams.minTextHeight}
                       onChange={(e) =>
-                        setSearchParams({
+                        updateSearchParams({
                           ...searchParams,
                           minTextHeight: Math.max(4, parseInt(e.target.value) || 8),
                         })
@@ -559,7 +584,7 @@ export function Step3_SearchSubtitles() {
                       type="checkbox"
                       checked={searchParams.useILAImages}
                       onChange={(e) =>
-                        setSearchParams({ ...searchParams, useILAImages: e.target.checked })
+                        updateSearchParams({ ...searchParams, useILAImages: e.target.checked })
                       }
                       className="mr-2"
                     />
@@ -570,7 +595,7 @@ export function Step3_SearchSubtitles() {
                       type="checkbox"
                       checked={searchParams.useEdgeDetection}
                       onChange={(e) =>
-                        setSearchParams({ ...searchParams, useEdgeDetection: e.target.checked })
+                        updateSearchParams({ ...searchParams, useEdgeDetection: e.target.checked })
                       }
                       className="mr-2"
                     />
