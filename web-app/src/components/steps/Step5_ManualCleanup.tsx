@@ -151,9 +151,10 @@ export function Step5_ManualCleanup() {
             {displayedImages.length > 0 && (
               <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded mb-4">
                 <p className="text-sm text-blue-800">
-                  <strong>Instructions:</strong> Click on images to select them. Selected images will have a blue
-                  border. Use the "Delete Selected" button to remove images that don't contain text. Click "Continue"
-                  when you're done reviewing.
+                  <strong>Instructions:</strong> Review each cleared image and select any that don't contain actual
+                  text or are false positives (images with no text should be deleted). Selected images will have a blue
+                  border. Use the "Delete Selected" button to remove the selected images. Click "Continue" when you're
+                  done reviewing.
                 </p>
               </div>
             )}
