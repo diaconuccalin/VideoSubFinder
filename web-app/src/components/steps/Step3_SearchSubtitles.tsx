@@ -265,7 +265,6 @@ export function Step3_SearchSubtitles() {
     setStartTimeInput(value);
     const parsed = parseTime(value);
     if (parsed !== null) {
-      const maxDuration = state.videoMetadata?.duration || 0;
       const clampedTime = Math.max(0, Math.min(parsed, endTime));
       setStartTime(clampedTime);
       setIsStartTimeValid(true);

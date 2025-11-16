@@ -459,7 +459,7 @@ export async function searchSubtitles(
         console.log('Seek-based search stopped at', currentTime);
         // Report final position before stopping
         if (onProgress) {
-          const elapsed = performance.now() - searchStartTime;
+          const elapsed = performance.now() - startTimeMs;
           const percentage = ((currentTime - startTime) / totalDuration) * 100;
           onProgress({
             currentTime,
