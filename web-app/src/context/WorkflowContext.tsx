@@ -19,6 +19,7 @@ const initialState: WorkflowState = {
   subtitleFrames: [],
   searchProgress: 0,
   isSearching: false,
+  clearedImages: [],
   clearProgress: 0,
   isClearing: false,
   acceptedFrames: new Set(),
@@ -79,6 +80,9 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
 
     case 'SET_SEARCHING':
       return { ...state, isSearching: action.payload };
+
+    case 'SET_CLEARED_IMAGES':
+      return { ...state, clearedImages: action.payload };
 
     case 'UPDATE_CLEAR_PROGRESS':
       return { ...state, clearProgress: action.payload };

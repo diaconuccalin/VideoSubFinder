@@ -12,6 +12,13 @@ export interface SubtitleFrame {
   confidence?: number;      // OCR confidence (0-100)
 }
 
+export interface ClearedImage {
+  id: string;               // Matches SubtitleFrame id
+  originalImageData: ImageData;
+  clearedImageData: ImageData;
+  timestamp: number;        // Time in seconds
+}
+
 export interface SubtitleEntry {
   index: number;            // Subtitle number (1, 2, 3, ...)
   startTime: number;        // Start time in seconds

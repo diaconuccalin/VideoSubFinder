@@ -3,7 +3,7 @@
  */
 
 import { VideoMetadata, BoundingBox } from './video.types';
-import { SubtitleFrame, DetectionSettings, ClusteringSettings, OCRSettings } from './subtitle.types';
+import { SubtitleFrame, DetectionSettings, ClusteringSettings, OCRSettings, ClearedImage } from './subtitle.types';
 
 export type WorkflowStep =
   | 'video-select'
@@ -37,6 +37,7 @@ export interface WorkflowState {
   isSearching: boolean;
 
   // Step 5: Clear Images
+  clearedImages: ClearedImage[];
   clearProgress: number;
   isClearing: boolean;
 

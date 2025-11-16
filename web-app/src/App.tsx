@@ -8,6 +8,7 @@ import { WorkflowStepper } from './components/layout/WorkflowStepper';
 import { Step1_VideoSelect } from './components/steps/Step1_VideoSelect';
 import { Step2_AutoDetect } from './components/steps/Step2_AutoDetect';
 import { Step3_SearchSubtitles } from './components/steps/Step3_SearchSubtitles';
+import { Step4_ClearImages } from './components/steps/Step4_ClearImages';
 import { StepPlaceholder } from './components/steps/StepPlaceholder';
 
 function AppContent() {
@@ -33,12 +34,7 @@ function AppContent() {
         return <Step3_SearchSubtitles />;
 
       case 'clear-images':
-        return (
-          <StepPlaceholder
-            title="Clear Images"
-            description="Remove background from subtitle images using K-means clustering."
-          />
-        );
+        return <Step4_ClearImages />;
 
       case 'manual-cleanup':
         return (
