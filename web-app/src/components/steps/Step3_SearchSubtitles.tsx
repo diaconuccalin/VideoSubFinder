@@ -292,12 +292,16 @@ export function Step3_SearchSubtitles() {
     const parsed = parseTime(value);
     if (parsed !== null) {
       const clampedTime = Math.max(0, Math.min(parsed, endTime));
+
+      // Only clear paused state if the time value actually changed
+      const timeChanged = clampedTime !== startTime;
+
       setStartTime(clampedTime);
       setIsStartTimeValid(true);
 
-      // Clear paused state if user manually changes search parameters
-      if (isPausedByTabSwitch) {
-        console.log('Clearing paused state because start time was changed to:', clampedTime);
+      // Clear paused state only if user manually changes search parameters to a different value
+      if (isPausedByTabSwitch && timeChanged) {
+        console.log('Clearing paused state because start time was changed from', startTime, 'to:', clampedTime);
         setIsPausedByTabSwitch(false);
         setLastPausedPosition(null);
         wasPausedRef.current = false;
@@ -314,11 +318,16 @@ export function Step3_SearchSubtitles() {
     if (parsed !== null) {
       const maxDuration = state.videoMetadata?.duration || 0;
       const clampedTime = Math.max(startTime, Math.min(parsed, maxDuration));
+
+      // Only clear paused state if the time value actually changed
+      const timeChanged = clampedTime !== endTime;
+
       setEndTime(clampedTime);
       setIsEndTimeValid(true);
 
-      // Clear paused state if user manually changes search parameters
-      if (isPausedByTabSwitch) {
+      // Clear paused state only if user manually changes search parameters to a different value
+      if (isPausedByTabSwitch && timeChanged) {
+        console.log('Clearing paused state because end time was changed from', endTime, 'to:', clampedTime);
         setIsPausedByTabSwitch(false);
         setLastPausedPosition(null);
         wasPausedRef.current = false;
