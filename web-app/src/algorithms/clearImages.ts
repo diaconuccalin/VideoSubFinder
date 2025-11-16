@@ -204,6 +204,9 @@ export async function clearAllImages(
         elapsedTime: elapsed,
         estimatedTimeRemaining: estimatedRemaining,
       });
+
+      // Yield to event loop to allow UI updates
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
   }
 
