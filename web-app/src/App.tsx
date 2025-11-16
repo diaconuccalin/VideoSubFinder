@@ -11,6 +11,7 @@ import { Step3_SearchSubtitles } from './components/steps/Step3_SearchSubtitles'
 import { Step4_ClearImages } from './components/steps/Step4_ClearImages';
 import { Step5_ManualCleanup } from './components/steps/Step5_ManualCleanup';
 import { Step6_ApplyOCR } from './components/steps/Step6_ApplyOCR';
+import { Step7_GenerateSubtitles } from './components/steps/Step7_GenerateSubtitles';
 import { StepPlaceholder } from './components/steps/StepPlaceholder';
 
 function AppContent() {
@@ -45,12 +46,7 @@ function AppContent() {
         return <Step6_ApplyOCR />;
 
       case 'generate-subs':
-        return (
-          <StepPlaceholder
-            title="Generate Subtitles"
-            description="Generate subtitle file in SRT, VTT, or ASS format."
-          />
-        );
+        return <Step7_GenerateSubtitles />;
 
       default:
         return null;
