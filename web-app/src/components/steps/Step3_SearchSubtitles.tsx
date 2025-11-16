@@ -153,7 +153,12 @@ export function Step3_SearchSubtitles() {
           searchParams,
           (progressData) => {
             lastProgressTimeRef.current = progressData.currentTime;
-            setProgress(progressData);
+            // Adjust progress to show time relative to original search, not resume point
+            setProgress({
+              ...progressData,
+              totalTime: endTime - startTime, // Total from original start
+              percentage: ((progressData.currentTime - startTime) / (endTime - startTime)) * 100,
+            });
           },
           () => shouldStopRef.current
         );
@@ -173,7 +178,12 @@ export function Step3_SearchSubtitles() {
           searchParams,
           (progressData) => {
             lastProgressTimeRef.current = progressData.currentTime;
-            setProgress(progressData);
+            // Adjust progress to show time relative to original search, not resume point
+            setProgress({
+              ...progressData,
+              totalTime: endTime - startTime, // Total from original start
+              percentage: ((progressData.currentTime - startTime) / (endTime - startTime)) * 100,
+            });
           },
           () => shouldStopRef.current
         );
