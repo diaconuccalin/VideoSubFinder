@@ -34,6 +34,10 @@ export function Step3_SearchSubtitles() {
   const [searchParams, setSearchParams] = useState<SearchParams>(DEFAULT_SEARCH_PARAMS);
   const [startTime, setStartTime] = useState(0);
   const [endTime, setEndTime] = useState(0);
+  const [startTimeInput, setStartTimeInput] = useState('00:00:00');
+  const [endTimeInput, setEndTimeInput] = useState('00:00:00');
+  const [isStartTimeValid, setIsStartTimeValid] = useState(true);
+  const [isEndTimeValid, setIsEndTimeValid] = useState(true);
   const [results, setResults] = useState<SubtitleFrame[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isPausedByTabSwitch, setIsPausedByTabSwitch] = useState(false);
@@ -51,6 +55,8 @@ export function Step3_SearchSubtitles() {
     if (state.videoMetadata && endTime === 0) {
       setStartTime(0);
       setEndTime(state.videoMetadata.duration);
+      setStartTimeInput('00:00:00');
+      setEndTimeInput(formatTime(state.videoMetadata.duration));
     }
   }, [state.videoMetadata]);
 
@@ -222,6 +228,21 @@ export function Step3_SearchSubtitles() {
     goToStep('clear-images');
   };
 
+  // Parse time from HH:MM:SS format to seconds
+  const parseTime = (timeStr: string): number | null => {
+    const parts = timeStr.split(':');
+    if (parts.length !== 3) return null;
+
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+    const seconds = parseInt(parts[2], 10);
+
+    if (isNaN(hours) || isNaN(minutes) || isNaN(seconds)) return null;
+    if (minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59) return null;
+
+    return hours * 3600 + minutes * 60 + seconds;
+  };
+
   // Format time as HH:MM:SS
   const formatTime = (seconds: number): string => {
     const h = Math.floor(seconds / 3600);
@@ -237,6 +258,34 @@ export function Step3_SearchSubtitles() {
     const s = Math.floor(seconds % 60);
     const ms = Math.floor((seconds % 1) * 1000);
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+  };
+
+  // Handle start time input change
+  const handleStartTimeChange = (value: string) => {
+    setStartTimeInput(value);
+    const parsed = parseTime(value);
+    if (parsed !== null) {
+      const maxDuration = state.videoMetadata?.duration || 0;
+      const clampedTime = Math.max(0, Math.min(parsed, endTime));
+      setStartTime(clampedTime);
+      setIsStartTimeValid(true);
+    } else {
+      setIsStartTimeValid(false);
+    }
+  };
+
+  // Handle end time input change
+  const handleEndTimeChange = (value: string) => {
+    setEndTimeInput(value);
+    const parsed = parseTime(value);
+    if (parsed !== null) {
+      const maxDuration = state.videoMetadata?.duration || 0;
+      const clampedTime = Math.max(startTime, Math.min(parsed, maxDuration));
+      setEndTime(clampedTime);
+      setIsEndTimeValid(true);
+    } else {
+      setIsEndTimeValid(false);
+    }
   };
 
   // Format duration as readable string
@@ -361,35 +410,43 @@ export function Step3_SearchSubtitles() {
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Time
+                  Start Time (HH:MM:SS)
                 </label>
                 <input
-                  type="number"
-                  value={startTime}
-                  onChange={(e) => setStartTime(Math.max(0, parseFloat(e.target.value) || 0))}
-                  min="0"
-                  max={endTime}
-                  step="1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  type="text"
+                  value={startTimeInput}
+                  onChange={(e) => handleStartTimeChange(e.target.value)}
+                  placeholder="00:00:00"
+                  pattern="[0-9]{2}:[0-9]{2}:[0-9]{2}"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent font-mono ${
+                    isStartTimeValid
+                      ? 'border-gray-300 focus:ring-blue-500'
+                      : 'border-red-500 focus:ring-red-500'
+                  }`}
                 />
-                <span className="text-xs text-gray-500">{formatTime(startTime)}</span>
+                <span className={`text-xs ${isStartTimeValid ? 'text-gray-500' : 'text-red-500'}`}>
+                  {isStartTimeValid ? `${startTime.toFixed(2)}s` : 'Invalid format (use HH:MM:SS)'}
+                </span>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  End Time
+                  End Time (HH:MM:SS)
                 </label>
                 <input
-                  type="number"
-                  value={endTime}
-                  onChange={(e) =>
-                    setEndTime(Math.min(state.videoMetadata?.duration || 0, parseFloat(e.target.value) || 0))
-                  }
-                  min={startTime}
-                  max={state.videoMetadata?.duration || 0}
-                  step="1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  type="text"
+                  value={endTimeInput}
+                  onChange={(e) => handleEndTimeChange(e.target.value)}
+                  placeholder="00:00:00"
+                  pattern="[0-9]{2}:[0-9]{2}:[0-9]{2}"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent font-mono ${
+                    isEndTimeValid
+                      ? 'border-gray-300 focus:ring-blue-500'
+                      : 'border-red-500 focus:ring-red-500'
+                  }`}
                 />
-                <span className="text-xs text-gray-500">{formatTime(endTime)}</span>
+                <span className={`text-xs ${isEndTimeValid ? 'text-gray-500' : 'text-red-500'}`}>
+                  {isEndTimeValid ? `${endTime.toFixed(2)}s` : 'Invalid format (use HH:MM:SS)'}
+                </span>
               </div>
             </div>
 
@@ -517,7 +574,7 @@ export function Step3_SearchSubtitles() {
             {/* Run Button */}
             <button
               onClick={handleRunSearch}
-              disabled={isSearching}
+              disabled={isSearching || !isStartTimeValid || !isEndTimeValid}
               className="w-full mt-4 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
             >
               {isPausedByTabSwitch ? '▶️ Continue Search' : '🔍 Run Search'}
