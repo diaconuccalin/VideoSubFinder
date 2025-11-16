@@ -282,6 +282,13 @@ export async function searchSubtitlesWebCodecs(
     // Wait until processing is complete
     await new Promise<void>((resolve) => {
       const checkInterval = setInterval(() => {
+        // Check shouldStop callback directly (in case requestVideoFrameCallback is throttled)
+        if (shouldStop && shouldStop() && !stopped) {
+          console.log('Detected stop signal - pausing video');
+          stopped = true;
+          video.pause();
+        }
+
         if (stopped || video.paused || video.ended) {
           clearInterval(checkInterval);
           resolve();
