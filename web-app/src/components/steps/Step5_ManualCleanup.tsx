@@ -73,6 +73,22 @@ export function Step5_ManualCleanup() {
       return;
     }
 
+    // If there are selected images, ask if user wants to delete them
+    if (selectedImageIds.size > 0) {
+      const confirmed = window.confirm(
+        `You have ${selectedImageIds.size} image(s) selected. Do you want to delete these selected images before proceeding to the next step?`
+      );
+
+      if (confirmed) {
+        // Delete selected images
+        const updatedImages = displayedImages.filter((img) => !selectedImageIds.has(img.id));
+        setDisplayedImages(updatedImages);
+        dispatch({ type: 'SET_CLEARED_IMAGES', payload: updatedImages });
+        setSelectedImageIds(new Set());
+        console.log(`Deleted ${selectedImageIds.size} images. ${updatedImages.length} images remaining.`);
+      }
+    }
+
     completeStep('manual-cleanup');
     // TODO: Add next step navigation
     // goToStep('ocr');
@@ -168,12 +184,19 @@ export function Step5_ManualCleanup() {
                     <div
                       key={image.id}
                       onClick={() => toggleImageSelection(image.id)}
-                      className={`border-2 rounded-lg p-2 cursor-pointer transition-all ${
+                      className={`border-2 rounded-lg p-2 cursor-pointer transition-all relative ${
                         isSelected
                           ? 'border-blue-500 bg-blue-50 shadow-lg'
                           : 'border-gray-300 hover:border-blue-300 hover:shadow-md'
                       }`}
                     >
+                      {/* Checkmark Overlay */}
+                      {isSelected && (
+                        <div className="absolute top-3 left-3 bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg shadow-lg z-10">
+                          ✓
+                        </div>
+                      )}
+
                       {/* Cleared Image */}
                       <canvas
                         ref={(canvas) => {
@@ -191,15 +214,6 @@ export function Step5_ManualCleanup() {
                       <div className="text-xs text-gray-700 mt-2 text-center">
                         <div className="font-medium">{formatTimeWithMs(image.timestamp)}</div>
                       </div>
-
-                      {/* Selection Indicator */}
-                      {isSelected && (
-                        <div className="mt-2 flex items-center justify-center">
-                          <div className="bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded">
-                            ✓ Selected
-                          </div>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
