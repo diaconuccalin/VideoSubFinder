@@ -2,6 +2,8 @@
  * Header Component
  */
 
+import { APP_VERSION } from '../../version';
+
 export function Header() {
   return (
     <header className="bg-submarine-yellow text-submarine-deep-blue border-b-4 border-submarine-ocean">
@@ -15,7 +17,12 @@ export function Header() {
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-wide">VideoSubFinder Web</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-wide">VideoSubFinder Web</h1>
+                <span className="text-xs bg-submarine-deep-blue text-submarine-yellow px-2 py-0.5 rounded-full font-semibold">
+                  {APP_VERSION}
+                </span>
+              </div>
               <p className="text-sm text-submarine-deep-blue/80 font-medium">Extract hardcoded subtitles from videos</p>
             </div>
           </div>
