@@ -70,7 +70,7 @@ export async function searchSubtitlesWebCodecs(
 
   // Create canvas for frame processing
   const canvas = new OffscreenCanvas(videoWidth, videoHeight);
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
 
   // Frame buffer for intersection
   const frameBuffer: Array<{

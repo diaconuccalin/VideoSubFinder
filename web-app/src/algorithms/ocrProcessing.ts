@@ -142,7 +142,7 @@ async function processImage(
   const canvas = document.createElement('canvas');
   canvas.width = imageData.width;
   canvas.height = imageData.height;
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
   ctx.putImageData(imageData, 0, 0);
 
   // Convert canvas to blob

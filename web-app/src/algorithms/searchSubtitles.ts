@@ -313,7 +313,7 @@ export function matToImageData(mat: cv.Mat): ImageData {
   const canvas = document.createElement('canvas');
   canvas.width = mat.cols;
   canvas.height = mat.rows;
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
 
   // Convert mat to canvas
   cv.imshow(canvas, mat);
@@ -432,7 +432,7 @@ export async function searchSubtitles(
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
 
   // Calculate region dimensions
   const regionWidth = detectedRegion.xmax - detectedRegion.xmin;

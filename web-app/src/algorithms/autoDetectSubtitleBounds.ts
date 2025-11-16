@@ -160,7 +160,7 @@ export async function autoDetectSubtitleBounds(
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
-      const ctx = canvas.getContext('2d')!;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
       ctx.drawImage(video, 0, 0, width, height);
 
       // Convert to OpenCV Mat
@@ -380,7 +380,7 @@ export async function autoDetectWithVisualization(
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
   ctx.drawImage(video, 0, 0);
 
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);

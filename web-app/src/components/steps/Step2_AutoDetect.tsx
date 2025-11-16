@@ -74,7 +74,7 @@ export function Step2_AutoDetect() {
       const updateCanvas = () => {
         if (canvasRef.current && video.readyState >= 2) {
           const canvas = canvasRef.current;
-          const ctx = canvas.getContext('2d')!;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
 
           // Draw current video frame
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);

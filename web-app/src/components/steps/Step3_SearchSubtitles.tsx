@@ -498,7 +498,7 @@ export function Step3_SearchSubtitles() {
                     <canvas
                       ref={(canvas) => {
                         if (canvas && frame.imageData) {
-                          const ctx = canvas.getContext('2d')!;
+                          const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
                           canvas.width = frame.imageData.width;
                           canvas.height = frame.imageData.height;
                           ctx.putImageData(frame.imageData, 0, 0);

@@ -304,7 +304,7 @@ export function Step4_ClearImages() {
                       <canvas
                         ref={(canvas) => {
                           if (canvas && image.clearedImageData) {
-                            const ctx = canvas.getContext('2d')!;
+                            const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
                             canvas.width = image.clearedImageData.width;
                             canvas.height = image.clearedImageData.height;
                             ctx.putImageData(image.clearedImageData, 0, 0);
