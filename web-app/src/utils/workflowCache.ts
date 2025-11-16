@@ -6,7 +6,7 @@
  */
 
 import { WorkflowState } from '../types/workflow.types';
-import { ClearedImage, OcrResult } from '../types/subtitle.types';
+import { ClearedImage } from '../types/subtitle.types';
 
 const CACHE_PREFIX = 'vsf_cache_';
 const CACHE_VERSION = 1;
@@ -14,7 +14,7 @@ const CACHE_VERSION = 1;
 /**
  * Generate cache key from video file metadata
  */
-function getCacheKey(videoFile: File | null, videoMetadata: any): string | null {
+function getCacheKey(videoFile: File | null, _videoMetadata: any): string | null {
   if (!videoFile) return null;
 
   // Use file name, size, and last modified as unique identifier
