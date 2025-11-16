@@ -46,6 +46,7 @@ export function Step3_SearchSubtitles() {
   const shouldStopRef = useRef(false);
   const wasPausedRef = useRef(false);
   const lastProgressTimeRef = useRef<number>(0);
+  const existingResultsCountRef = useRef<number>(0);
 
   // Get detected region from state (Step 2 result)
   const detectedRegion = state.detectedRegion || state.adjustedRegion;
@@ -107,9 +108,13 @@ export function Step3_SearchSubtitles() {
     const isResuming = isPausedByTabSwitch && lastPausedPosition !== null;
     const effectiveStartTime = isResuming ? lastPausedPosition : startTime;
 
+    // Save existing results count for progress display and merging
+    const existingResults = isResuming ? [...results] : [];
+    existingResultsCountRef.current = existingResults.length;
+
     console.log(
       isResuming
-        ? `Resuming search from ${effectiveStartTime.toFixed(2)}s`
+        ? `Resuming search from ${effectiveStartTime.toFixed(2)}s (${existingResults.length} existing results)`
         : `Starting new search from ${effectiveStartTime.toFixed(2)}s`
     );
 
@@ -121,6 +126,7 @@ export function Step3_SearchSubtitles() {
     // Keep existing results if resuming, otherwise clear them
     if (!isResuming) {
       setResults([]);
+      existingResultsCountRef.current = 0;
     }
     setProgress(null);
     lastProgressTimeRef.current = effectiveStartTime;
@@ -154,10 +160,12 @@ export function Step3_SearchSubtitles() {
           (progressData) => {
             lastProgressTimeRef.current = progressData.currentTime;
             // Adjust progress to show time relative to original search, not resume point
+            // Add existing results count when resuming
             setProgress({
               ...progressData,
               totalTime: endTime - startTime, // Total from original start
               percentage: ((progressData.currentTime - startTime) / (endTime - startTime)) * 100,
+              subtitlesFound: progressData.subtitlesFound + existingResultsCountRef.current,
             });
           },
           () => shouldStopRef.current
@@ -179,18 +187,20 @@ export function Step3_SearchSubtitles() {
           (progressData) => {
             lastProgressTimeRef.current = progressData.currentTime;
             // Adjust progress to show time relative to original search, not resume point
+            // Add existing results count when resuming
             setProgress({
               ...progressData,
               totalTime: endTime - startTime, // Total from original start
               percentage: ((progressData.currentTime - startTime) / (endTime - startTime)) * 100,
+              subtitlesFound: progressData.subtitlesFound + existingResultsCountRef.current,
             });
           },
           () => shouldStopRef.current
         );
       }
 
-      // Merge with existing results if resuming
-      const finalResults = isResuming ? [...results, ...subtitleFrames] : subtitleFrames;
+      // Merge with existing results if resuming (use saved existingResults, not state)
+      const finalResults = isResuming ? [...existingResults, ...subtitleFrames] : subtitleFrames;
       setResults(finalResults);
 
       // Save to global state
