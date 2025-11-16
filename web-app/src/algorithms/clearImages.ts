@@ -53,10 +53,17 @@ export function clearImageByKMeans(
     cv.cvtColor(src, lab, cv.COLOR_RGBA2RGB);
     cv.cvtColor(lab, lab, cv.COLOR_RGB2Lab);
 
-    // Reshape for K-means: (width * height) x 3
-    const samples = lab.reshape(3, lab.rows * lab.cols);
-    const samples32f = new cv.Mat();
-    samples.convertTo(samples32f, cv.CV_32F);
+    // Prepare data for K-means: reshape to (width * height) x 3
+    const totalPixels = lab.rows * lab.cols;
+    const samples = new cv.Mat(totalPixels, 3, cv.CV_32F);
+
+    // Copy LAB data into samples matrix
+    for (let i = 0; i < totalPixels; i++) {
+      const idx = i * 3;
+      samples.data32F[i * 3] = lab.data[idx];       // L channel
+      samples.data32F[i * 3 + 1] = lab.data[idx + 1]; // a channel
+      samples.data32F[i * 3 + 2] = lab.data[idx + 2]; // b channel
+    }
 
     // K-means clustering
     const labels = new cv.Mat();
@@ -68,7 +75,7 @@ export function clearImageByKMeans(
     );
 
     cv.kmeans(
-      samples32f,
+      samples,
       params.numClusters,
       labels,
       criteria,
@@ -132,7 +139,6 @@ export function clearImageByKMeans(
     src.delete();
     lab.delete();
     samples.delete();
-    samples32f.delete();
     labels.delete();
     centers.delete();
     cleared.delete();
