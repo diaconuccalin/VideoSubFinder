@@ -2,10 +2,11 @@
  * Workflow state management using React Context
  */
 
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { WorkflowState, WorkflowAction, WorkflowStep } from '../types/workflow.types';
 import { DEFAULT_DETECTION_SETTINGS, DEFAULT_CLUSTERING_SETTINGS, DEFAULT_OCR_SETTINGS } from '../config/settings';
 import { BoundingBox } from '../types/video.types';
+import { saveWorkflowState, loadWorkflowState } from '../utils/workflowCache';
 
 const initialState: WorkflowState = {
   currentStep: 'video-select',
@@ -59,6 +60,17 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
         videoFile: action.payload.file,
         videoMetadata: action.payload.metadata,
         videoUrl: action.payload.url,
+      };
+
+    case 'RESTORE_CACHED_STATE':
+      // Restore workflow state from cache
+      return {
+        ...state,
+        ...action.payload,
+        // Keep video file and URL from current state
+        videoFile: state.videoFile,
+        videoMetadata: state.videoMetadata,
+        videoUrl: state.videoUrl,
       };
 
     case 'CLEAR_VIDEO':
@@ -151,12 +163,26 @@ interface WorkflowContextType {
   completeStep: (step: WorkflowStep) => void;
   setDetectedRegion: (region: BoundingBox | null) => void;
   setAdjustedRegion: (region: BoundingBox) => void;
+  loadCachedState: (file: File, metadata: any) => Promise<boolean>;
 }
 
 const WorkflowContext = createContext<WorkflowContextType | undefined>(undefined);
 
 export function WorkflowProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(workflowReducer, initialState);
+
+  // Auto-save state to cache whenever it changes (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (state.videoFile) {
+        saveWorkflowState(state).catch((error) => {
+          console.error('Failed to save workflow state:', error);
+        });
+      }
+    }, 1000); // Debounce 1 second
+
+    return () => clearTimeout(timer);
+  }, [state]);
 
   const goToStep = (step: WorkflowStep) => {
     dispatch({ type: 'SET_STEP', payload: step });
@@ -178,6 +204,20 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_ADJUSTED_REGION', payload: region });
   };
 
+  const loadCachedState = async (file: File, metadata: any): Promise<boolean> => {
+    try {
+      const cached = await loadWorkflowState(file, metadata);
+      if (cached) {
+        dispatch({ type: 'RESTORE_CACHED_STATE', payload: cached });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to load cached state:', error);
+      return false;
+    }
+  };
+
   return (
     <WorkflowContext.Provider
       value={{
@@ -188,6 +228,7 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
         completeStep,
         setDetectedRegion,
         setAdjustedRegion,
+        loadCachedState,
       }}
     >
       {children}

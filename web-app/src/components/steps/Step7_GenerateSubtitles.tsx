@@ -13,7 +13,7 @@ import {
 } from '../../algorithms/subtitleGenerator';
 
 export function Step7_GenerateSubtitles() {
-  const { state, dispatch, goToStep } = useWorkflow();
+  const { state, dispatch, goToStep, completeStep } = useWorkflow();
 
   const [srtContent, setSrtContent] = useState<string>('');
   const [stats, setStats] = useState<{
@@ -35,8 +35,11 @@ export function Step7_GenerateSubtitles() {
 
       // Save to workflow state
       dispatch({ type: 'SET_SUBTITLE_CONTENT', payload: content });
+
+      // Mark this step as completed
+      completeStep('generate-subs');
     }
-  }, [state.ocrResults, state.subtitleFrames, dispatch]);
+  }, [state.ocrResults, state.subtitleFrames, dispatch, completeStep]);
 
   // Download SRT file
   const handleDownload = () => {

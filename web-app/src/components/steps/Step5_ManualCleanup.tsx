@@ -56,8 +56,14 @@ export function Step5_ManualCleanup() {
       const updatedImages = displayedImages.filter((img) => !selectedImageIds.has(img.id));
       setDisplayedImages(updatedImages);
 
-      // Update global state
+      // Update cleared images in global state
       dispatch({ type: 'SET_CLEARED_IMAGES', payload: updatedImages });
+
+      // Also remove corresponding subtitle frames from Step 3
+      const updatedFrames = state.subtitleFrames.filter(
+        (frame) => !selectedImageIds.has(frame.id)
+      );
+      dispatch({ type: 'SET_SUBTITLE_FRAMES', payload: updatedFrames });
 
       // Clear selection
       setSelectedImageIds(new Set());
@@ -84,6 +90,13 @@ export function Step5_ManualCleanup() {
         const updatedImages = displayedImages.filter((img) => !selectedImageIds.has(img.id));
         setDisplayedImages(updatedImages);
         dispatch({ type: 'SET_CLEARED_IMAGES', payload: updatedImages });
+
+        // Also remove corresponding subtitle frames from Step 3
+        const updatedFrames = state.subtitleFrames.filter(
+          (frame) => !selectedImageIds.has(frame.id)
+        );
+        dispatch({ type: 'SET_SUBTITLE_FRAMES', payload: updatedFrames });
+
         setSelectedImageIds(new Set());
         console.log(`Deleted ${selectedImageIds.size} images. ${updatedImages.length} images remaining.`);
       }

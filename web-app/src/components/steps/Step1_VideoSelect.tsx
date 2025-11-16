@@ -8,7 +8,7 @@ import { VideoMetadata } from '../../types/video.types';
 import { VIDEO_CONSTRAINTS } from '../../config/settings';
 
 export function Step1_VideoSelect() {
-  const { state, dispatch, goToStep } = useWorkflow();
+  const { state, dispatch, goToStep, loadCachedState } = useWorkflow();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -56,8 +56,16 @@ export function Step1_VideoSelect() {
         payload: { file, metadata, url: videoUrl },
       });
 
-      // Navigate to auto-detect step
-      goToStep('auto-detect');
+      // Try to load cached state for this video
+      const hasCachedState = await loadCachedState(file, metadata);
+
+      if (hasCachedState) {
+        console.log('Loaded cached workflow state for this video');
+        // Stay on current step (let the user navigate from there)
+      } else {
+        // Navigate to auto-detect step for new video
+        goToStep('auto-detect');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load video');
       setIsLoading(false);
