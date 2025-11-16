@@ -247,8 +247,7 @@ export function analyzeImageForText(
     const textPercentage = totalTextArea / imageArea;
 
     // Need at least some valid regions and sufficient text coverage
-    // Note: textPercentageThreshold is already in 0.0-1.0 range (e.g., 0.30 = 30%)
-    return validTextRegions > 0 && textPercentage >= params.textPercentageThreshold;
+    return validTextRegions > 0 && textPercentage >= params.textPercentageThreshold / 100;
   } finally {
     stats.delete();
     centroids.delete();

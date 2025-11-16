@@ -272,8 +272,8 @@ export async function searchSubtitlesWebCodecs(
 
     // Set playback rate for faster processing
     // Note: Higher rates may cause the browser to skip frames to maintain speed
-    // 1x speed ensures all frames are processed without skipping
-    video.playbackRate = 1.0; // 1x speed (normal playback)
+    // 4x speed for faster processing
+    video.playbackRate = 4.0; // 4x speed
     console.log(`Starting video playback at ${video.playbackRate}x speed`);
 
     // Play the video (muted)
