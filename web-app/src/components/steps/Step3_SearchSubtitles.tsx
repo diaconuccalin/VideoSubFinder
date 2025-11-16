@@ -37,9 +37,11 @@ export function Step3_SearchSubtitles() {
   const [results, setResults] = useState<SubtitleFrame[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isPausedByTabSwitch, setIsPausedByTabSwitch] = useState(false);
+  const [lastPausedPosition, setLastPausedPosition] = useState<number | null>(null);
   const useWebCodecs = isWebCodecsSupported();
   const shouldStopRef = useRef(false);
   const wasPausedRef = useRef(false);
+  const lastProgressTimeRef = useRef<number>(0);
 
   // Get detected region from state (Step 2 result)
   const detectedRegion = state.detectedRegion || state.adjustedRegion;
@@ -66,6 +68,8 @@ export function Step3_SearchSubtitles() {
         // Tab is now hidden
         if (isSearching && !wasPausedRef.current) {
           console.log('Tab hidden - pausing subtitle search');
+          // Save the current position before pausing
+          setLastPausedPosition(lastProgressTimeRef.current);
           setIsPausedByTabSwitch(true);
           shouldStopRef.current = true;
           wasPausedRef.current = true;
@@ -73,10 +77,9 @@ export function Step3_SearchSubtitles() {
       } else {
         // Tab is now visible
         if (wasPausedRef.current) {
-          console.log('Tab visible again - search was paused');
-          setIsPausedByTabSwitch(false);
-          wasPausedRef.current = false;
-          // Note: User needs to manually restart the search
+          console.log('Tab visible again - search was paused. User can continue from last position.');
+          // Keep isPausedByTabSwitch true to show the alert
+          // It will be cleared when user clicks "Continue Search"
         }
       }
     };
@@ -94,19 +97,34 @@ export function Step3_SearchSubtitles() {
       return;
     }
 
+    // Determine if we're resuming from a paused position
+    const isResuming = isPausedByTabSwitch && lastPausedPosition !== null;
+    const effectiveStartTime = isResuming ? lastPausedPosition : startTime;
+
+    console.log(
+      isResuming
+        ? `Resuming search from ${effectiveStartTime.toFixed(2)}s`
+        : `Starting new search from ${effectiveStartTime.toFixed(2)}s`
+    );
+
     setIsSearching(true);
     shouldStopRef.current = false;
     setIsPausedByTabSwitch(false);
     wasPausedRef.current = false;
-    setResults([]);
+
+    // Keep existing results if resuming, otherwise clear them
+    if (!isResuming) {
+      setResults([]);
+    }
     setProgress(null);
+    lastProgressTimeRef.current = effectiveStartTime;
 
     try {
       let subtitleFrames: SubtitleFrame[];
 
       // Determine which approach to use based on time range
       const videoDuration = videoRef.current?.duration || 0;
-      const searchDuration = endTime - startTime;
+      const searchDuration = endTime - effectiveStartTime;
       const searchPercentage = videoDuration > 0 ? (searchDuration / videoDuration) * 100 : 100;
 
       // Use WebCodecs only for large time ranges (> 30% of video)
@@ -124,10 +142,11 @@ export function Step3_SearchSubtitles() {
         subtitleFrames = await searchSubtitlesWebCodecs(
           state.videoFile,
           detectedRegion,
-          startTime,
+          effectiveStartTime,
           endTime,
           searchParams,
           (progressData) => {
+            lastProgressTimeRef.current = progressData.currentTime;
             setProgress(progressData);
           },
           () => shouldStopRef.current
@@ -143,26 +162,32 @@ export function Step3_SearchSubtitles() {
         subtitleFrames = await searchSubtitles(
           videoRef.current,
           detectedRegion,
-          startTime,
+          effectiveStartTime,
           endTime,
           searchParams,
           (progressData) => {
+            lastProgressTimeRef.current = progressData.currentTime;
             setProgress(progressData);
           },
           () => shouldStopRef.current
         );
       }
 
-      setResults(subtitleFrames);
+      // Merge with existing results if resuming
+      const finalResults = isResuming ? [...results, ...subtitleFrames] : subtitleFrames;
+      setResults(finalResults);
 
       // Save to global state
-      dispatch({ type: 'SET_SUBTITLE_FRAMES', payload: subtitleFrames });
+      dispatch({ type: 'SET_SUBTITLE_FRAMES', payload: finalResults });
       dispatch({ type: 'UPDATE_SEARCH_PROGRESS', payload: 100 });
 
       // Mark step as complete if we found subtitles
-      if (subtitleFrames.length > 0) {
+      if (finalResults.length > 0) {
         completeStep('search-subtitles');
       }
+
+      // Clear the paused position on successful completion
+      setLastPausedPosition(null);
     } catch (error) {
       console.error('Search error:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -183,6 +208,10 @@ export function Step3_SearchSubtitles() {
   const handleReset = () => {
     setResults([]);
     setProgress(null);
+    setIsPausedByTabSwitch(false);
+    setLastPausedPosition(null);
+    wasPausedRef.current = false;
+    lastProgressTimeRef.current = 0;
     dispatch({ type: 'SET_SUBTITLE_FRAMES', payload: [] });
     dispatch({ type: 'UPDATE_SEARCH_PROGRESS', payload: 0 });
   };
@@ -303,7 +332,11 @@ export function Step3_SearchSubtitles() {
                   🔔 Search paused - tab was switched
                 </p>
                 <p className="text-sm text-orange-700 mt-1">
-                  The subtitle search was automatically paused because you switched to another tab. Click "Run Search" again to continue from where it left off.
+                  The subtitle search was automatically paused because you switched to another tab.
+                  {lastPausedPosition !== null && (
+                    <> Paused at {formatTime(lastPausedPosition)}.</>
+                  )}
+                  {' '}Click "Continue Search" to resume from where it left off.
                 </p>
               </div>
             </div>
@@ -487,7 +520,7 @@ export function Step3_SearchSubtitles() {
               disabled={isSearching}
               className="w-full mt-4 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
             >
-              🔍 Run Search
+              {isPausedByTabSwitch ? '▶️ Continue Search' : '🔍 Run Search'}
             </button>
           </div>
         </div>
