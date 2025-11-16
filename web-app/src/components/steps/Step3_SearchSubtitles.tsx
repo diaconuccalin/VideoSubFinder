@@ -74,17 +74,18 @@ export function Step3_SearchSubtitles() {
       if (document.hidden) {
         // Tab is now hidden
         if (isSearching && !wasPausedRef.current) {
-          console.log('Tab hidden - pausing subtitle search');
+          console.log('Tab hidden - pausing subtitle search at position:', lastProgressTimeRef.current);
           // Save the current position before pausing
           setLastPausedPosition(lastProgressTimeRef.current);
           setIsPausedByTabSwitch(true);
           shouldStopRef.current = true;
           wasPausedRef.current = true;
+          console.log('Set isPausedByTabSwitch=true, lastPausedPosition=', lastProgressTimeRef.current);
         }
       } else {
         // Tab is now visible
         if (wasPausedRef.current) {
-          console.log('Tab visible again - search was paused. User can continue from last position.');
+          console.log('Tab visible again - search was paused. isPausedByTabSwitch should still be true');
           // Keep isPausedByTabSwitch true to show the alert
           // It will be cleared when user clicks "Continue Search"
         }
@@ -105,8 +106,9 @@ export function Step3_SearchSubtitles() {
     }
 
     // Determine if we're resuming from a paused position
-    console.log('Resume check:', { isPausedByTabSwitch, lastPausedPosition, startTime, endTime });
+    console.log('Resume check - isPausedByTabSwitch:', isPausedByTabSwitch, 'lastPausedPosition:', lastPausedPosition, 'startTime:', startTime, 'endTime:', endTime);
     const isResuming = isPausedByTabSwitch && lastPausedPosition !== null;
+    console.log('isResuming:', isResuming);
     const effectiveStartTime = isResuming ? lastPausedPosition : startTime;
 
     // Save existing results count for progress display and merging
