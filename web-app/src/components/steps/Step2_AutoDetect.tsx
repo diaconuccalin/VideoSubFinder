@@ -57,9 +57,10 @@ export function Step2_AutoDetect() {
   useEffect(() => {
     // Clear detection when video changes
     const videoChanged = state.videoUrl && state.videoUrl !== '';
-    if (videoChanged && !state.detectedRegion) {
+    // Don't auto-detect if we have cached bounds from a previous session
+    if (videoChanged && !state.detectedRegion && !detectedRegion) {
       // Only run auto-detection if no previous detection exists
-      if (!isDetecting && !detectedRegion) {
+      if (!isDetecting) {
         runAutoDetection();
       }
     }
@@ -553,6 +554,7 @@ export function Step2_AutoDetect() {
                     src={state.videoUrl}
                     className="hidden"
                     crossOrigin="anonymous"
+                    muted
                   />
                   <canvas
                     ref={canvasRef}
