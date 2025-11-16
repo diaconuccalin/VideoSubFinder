@@ -101,8 +101,7 @@ export function Step4_ClearImages() {
   // Handle continue to next step
   const handleContinue = () => {
     completeStep('clear-images');
-    // TODO: Add next step (OCR or export)
-    // goToStep('ocr');
+    goToStep('manual-cleanup');
   };
 
   // Format duration as readable string
@@ -333,7 +332,7 @@ export function Step4_ClearImages() {
                   onClick={handleContinue}
                   className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
                 >
-                  Continue →
+                  Continue to Manual Cleanup →
                 </button>
               </div>
             </div>
@@ -362,7 +361,7 @@ export function Step4_ClearImages() {
               onClick={handleContinue}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Continue →
+              Continue to Manual Cleanup →
             </button>
           )}
         </div>

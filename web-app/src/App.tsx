@@ -9,6 +9,7 @@ import { Step1_VideoSelect } from './components/steps/Step1_VideoSelect';
 import { Step2_AutoDetect } from './components/steps/Step2_AutoDetect';
 import { Step3_SearchSubtitles } from './components/steps/Step3_SearchSubtitles';
 import { Step4_ClearImages } from './components/steps/Step4_ClearImages';
+import { Step5_ManualCleanup } from './components/steps/Step5_ManualCleanup';
 import { StepPlaceholder } from './components/steps/StepPlaceholder';
 
 function AppContent() {
@@ -37,12 +38,7 @@ function AppContent() {
         return <Step4_ClearImages />;
 
       case 'manual-cleanup':
-        return (
-          <StepPlaceholder
-            title="Manual Cleanup"
-            description="Review and manually edit the cleared subtitle images."
-          />
-        );
+        return <Step5_ManualCleanup />;
 
       case 'ocr':
         return (
